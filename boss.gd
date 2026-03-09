@@ -90,6 +90,7 @@ var voice_good: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant So
 var voice_flight: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Take flight .mp3")
 var voice_defeat: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova You failed now sleep .mp3")
 var voice_victory: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova You all are wonderfull .mp3")
+var voice_lightning: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Nowhere to run  .mp3")
 
 
 func _ready() -> void:
@@ -633,8 +634,8 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 	hp = max(hp, 0)
 	hurt_sfx.play()
 	
-	# Randomly play hurt voice (e.g. 30% chance)
-	if randf() < 0.3:
+	# Randomly play hurt voice (e.g. 80% chance instead of 30%)
+	if randf() < 0.8:
 		voice_player.stream = voice_hurts.pick_random()
 		voice_player.play()
 
@@ -678,8 +679,8 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 		anim.play("takehit")
 		state = BossState.HURT
 		
-		# If the player successfully parries the boss: 50% chance to say "Good"
-		if randf() < 0.5:
+		# If the player successfully parries the boss: 15% chance to say "Good"
+		if randf() < 0.15:
 			voice_player.stream = voice_good
 			voice_player.play()
 
@@ -731,6 +732,9 @@ func _spawn_projectile() -> void:
 func _spawn_lightning_strikes() -> void:
 	if player == null:
 		return
+		
+	voice_player.stream = voice_lightning
+	voice_player.play()
 
 	var strike_count: int = LIGHTNING_STRIKES_P4 if current_phase >= 4 else LIGHTNING_STRIKES_BASE
 	# Get arena bounds from walls (roughly x=0 to x=1280)

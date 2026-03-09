@@ -10,10 +10,10 @@
 [ext_resource type="Texture2D" uid="uid://ddpdp0jcry0yi" path="res://asset/enemy/boss/Jump.png" id="15_cm1kr"]
 [ext_resource type="Texture2D" uid="uid://df06i8l6mvwqw" path="res://asset/enemy/boss/Run.png" id="16_akhi5"]
 [ext_resource type="Texture2D" uid="uid://ba2xt2cw323j4" path="res://asset/enemy/boss/Take hit.png" id="17_vwlhh"]
-[ext_resource type="AudioStream" uid="uid://72klle34j8dc" path="res://asset/VFX/Combat and Gore/swipe.wav" id="18_telegraph"]
-[ext_resource type="AudioStream" uid="uid://fya354mqwh1w" path="res://asset/effect/hero_damage_less_harsh.wav" id="19_hurt"]
-[ext_resource type="AudioStream" path="res://asset/VFX/Combat and Gore/kick.wav" id="20_parry_sfx"]
-[ext_resource type="AudioStream" path="res://asset/effect/Stab 4-1.wav" id="21_slash_sfx"]
+[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/08_human_charge_1.wav" id="18_telegraph"]
+[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/11_human_damage_1.wav" id="19_hurt"]
+[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/26_sword_hit_1.wav" id="20_parry_sfx"]
+[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/27_sword_miss_1.wav" id="21_slash_sfx"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_body"]
 size = Vector2(14, 44)
