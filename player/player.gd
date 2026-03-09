@@ -55,6 +55,7 @@ var current_slash_vfx: Node2D = null
 @onready var hero_dash_sfx: AudioStreamPlayer = $HeroDashSFX
 @onready var hit_sfx: AudioStreamPlayer = $HitSFX
 @onready var hero_parry_sfx: AudioStreamPlayer = $HeroParrySFX
+@onready var damage_sfx: AudioStreamPlayer = $DamageSFX
 
 
 func _ready() -> void:
@@ -162,6 +163,7 @@ func take_damage(amount: int, from_position: Vector2) -> void:
 	if is_invincible:
 		return
 	health -= amount
+	damage_sfx.play()
 	var knockback_dir = sign(global_position.x - from_position.x)
 	if knockback_dir == 0:
 		knockback_dir = -dir

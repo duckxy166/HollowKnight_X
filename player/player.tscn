@@ -13,8 +13,9 @@
 [ext_resource type="AudioStream" uid="uid://c46j4gkkrill3" path="res://asset/effect/Pyke_Original_QRange_0.ogg" id="11_dash"]
 [ext_resource type="AudioStream" uid="uid://dgi214ypyq1b2" path="res://asset/effect/foley_footstep_concrete_4.wav" id="12_foot"]
 [ext_resource type="AudioStream" uid="uid://c0bg3dcukju1q" path="res://asset/effect/hero_dash.wav" id="13_hdash"]
-[ext_resource type="AudioStream" uid="uid://cbv34x5rq0kx4" path="res://asset/effect/slap.wav" id="14_slap"]
+[ext_resource type="AudioStream" uid="uid://by5yuuyr3hsrs" path="res://asset/effect/Stab 4-1.wav" id="14_slap"]
 [ext_resource type="AudioStream" uid="uid://dvfiekpu88bcy" path="res://asset/effect/hero_parry.wav" id="15_parry"]
+[ext_resource type="AudioStream" uid="uid://blcvsydicatyc" path="res://asset/effect/hero_damage.wav" id="16_damage"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_body"]
 size = Vector2(14, 22)
@@ -295,3 +296,6 @@ stream = ExtResource("14_slap")
 
 [node name="HeroParrySFX" type="AudioStreamPlayer" parent="." unique_id=987654321]
 stream = ExtResource("15_parry")
+
+[node name="DamageSFX" type="AudioStreamPlayer" parent="." unique_id=987654322]
+stream = ExtResource("16_damage")
