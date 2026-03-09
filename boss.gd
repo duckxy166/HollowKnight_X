@@ -1,0 +1,507 @@
+extends CharacterBody2D
+
+## Boss AI with 4-phase system. Phases escalate attacks and speed as HP drops.
+
+# ── State Machine ──
+enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, HURT, DEATH }
+
+# ── Constants ──
+const MAX_HP: int = 40
+const GRAVITY: float = 900.0
+const MAX_FALL_SPEED: float = 450.0
+const CHASE_SPEED: float = 100.0
+const ATTACK_RANGE: float = 60.0
+const CHASE_RANGE: float = 300.0
+
+# Phase thresholds (HP values)
+const PHASE_2_THRESHOLD: int = 30  # 75%
+const PHASE_3_THRESHOLD: int = 20  # 50%
+const PHASE_4_THRESHOLD: int = 10  # 25%
+
+# Idle cooldowns per phase
+const IDLE_COOLDOWNS: Array[float] = [1.5, 1.0, 0.8, 0.2]
+# Animation speed multipliers per phase
+const SPEED_MULTIPLIERS: Array[float] = [1.0, 1.2, 1.2, 1.4]
+
+# Attack hitbox offset from the boss (should match scene pivot)
+const ATTACK_HITBOX_POS := Vector2(25, -2)
+
+# Combo timing
+const COMBO_HITS: int = 3
+const COMBO_GAP: float = 0.1  # seconds between combo hits
+
+# Delay attack extra pause
+const DELAY_PAUSE: float = 0.5
+
+# ── Runtime State ──
+var hp: int = MAX_HP
+var current_phase: int = 1
+var state: BossState = BossState.IDLE
+var dir: int = -1  # -1 = facing left (toward player by default)
+var idle_timer: float = 0.0
+var attack_timer: float = 0.0
+var hurt_timer: float = 0.0
+var combo_count: int = 0
+var delay_phase: int = 0  # 0=windup, 1=pause, 2=swing
+var delay_timer: float = 0.0
+var hitbox_active: bool = false
+var is_dead: bool = false
+var is_invincible: bool = false
+
+var player: CharacterBody2D = null
+var projectile_scene: PackedScene = preload("res://boss_projectile.tscn")
+
+# ── Node References ──
+@onready var anim: AnimatedSprite2D = $AnimatedSprite2D
+@onready var attack_hitbox: Area2D = $AttackPivot/AttackHitbox
+@onready var attack_pivot: Node2D = $AttackPivot
+@onready var hurtbox: Area2D = $Hurtbox
+@onready var body_collision: CollisionShape2D = $CollisionShape2D
+@onready var telegraph_sfx: AudioStreamPlayer = $TelegraphSFX
+
+
+func _ready() -> void:
+	floor_constant_speed = true
+	add_to_group("boss")
+	# Boss attack hitbox starts fully hidden so player can't parry when boss isn't swinging
+	attack_hitbox.monitoring = false
+	attack_hitbox.monitorable = false
+
+	# Find player in the scene
+	await get_tree().process_frame
+	player = get_tree().get_first_node_in_group("player")
+	if player == null:
+		# Fallback: find by node name
+		var players = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			player = players[0]
+		else:
+			# Try to find CharacterBody2D named Player
+			player = get_parent().get_node_or_null("Player")
+
+	# Listen for parry events
+	GameManager.parry_occurred.connect(_on_parry_occurred)
+
+	# Connect animation signals
+	anim.animation_finished.connect(_on_animation_finished)
+
+	_update_direction(-1)
+	_enter_state(BossState.IDLE)
+
+
+func _physics_process(delta: float) -> void:
+	if is_dead:
+		return
+
+	# Gravity
+	if not is_on_floor():
+		velocity.y = min(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
+
+	match state:
+		BossState.IDLE:
+			_process_idle(delta)
+		BossState.CHASE:
+			_process_chase(delta)
+		BossState.ATTACK1, BossState.ATTACK2:
+			_process_attack(delta)
+		BossState.COMBO:
+			_process_combo(delta)
+		BossState.DELAY_ATTACK:
+			_process_delay_attack(delta)
+		BossState.PROJECTILE:
+			_process_projectile(delta)
+		BossState.HURT:
+			_process_hurt(delta)
+		BossState.DEATH:
+			velocity.x = 0.0
+
+	move_and_slide()
+
+
+# ── State Transitions ──
+
+func _enter_state(new_state: BossState) -> void:
+	state = new_state
+	match new_state:
+		BossState.IDLE:
+			idle_timer = IDLE_COOLDOWNS[current_phase - 1]
+			velocity.x = 0.0
+			anim.speed_scale = 1.0
+			anim.play("idle")
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+
+		BossState.CHASE:
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("run")
+
+		BossState.ATTACK1:
+			_face_player()
+			_telegraph_attack()
+			velocity.x = 0.0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("attack1")
+			attack_timer = 0.0
+			hitbox_active = false
+			# Hitbox activates on frame 3 via _process_attack
+
+		BossState.ATTACK2:
+			_face_player()
+			_telegraph_attack()
+			velocity.x = 0.0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("attack2")
+			attack_timer = 0.0
+			hitbox_active = false
+
+		BossState.COMBO:
+			_face_player()
+			_telegraph_attack()
+			velocity.x = 0.0
+			combo_count = 0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.3
+			anim.play("attack3")
+			attack_timer = 0.0
+			hitbox_active = false
+
+		BossState.DELAY_ATTACK:
+			_face_player()
+			_telegraph_attack()
+			velocity.x = 0.0
+			delay_phase = 0  # Start with wind-up
+			delay_timer = 0.0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("attack1")
+			attack_timer = 0.0
+			hitbox_active = false
+
+		BossState.PROJECTILE:
+			_face_player()
+			_telegraph_attack()
+			velocity.x = 0.0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("attack3")
+			attack_timer = 0.0
+			hitbox_active = false
+
+		BossState.HURT:
+			velocity.x = 0.0
+			hurt_timer = 0.3
+			anim.speed_scale = 1.0
+			anim.play("takehit")
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+
+		BossState.DEATH:
+			is_dead = true
+			velocity = Vector2.ZERO
+			anim.speed_scale = 1.0
+			anim.play("death")
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+			hurtbox.monitoring = false
+			hurtbox.monitorable = false
+			body_collision.set_deferred("disabled", true)
+
+
+# ── State Processing ──
+
+func _process_idle(delta: float) -> void:
+	velocity.x = 0.0
+	idle_timer -= delta
+	if idle_timer <= 0:
+		if player and _distance_to_player() > ATTACK_RANGE:
+			_enter_state(BossState.CHASE)
+		else:
+			_pick_and_enter_attack()
+
+
+func _process_chase(delta: float) -> void:
+	if player == null:
+		_enter_state(BossState.IDLE)
+		return
+
+	_face_player()
+	velocity.x = dir * CHASE_SPEED * SPEED_MULTIPLIERS[current_phase - 1]
+
+	if _distance_to_player() <= ATTACK_RANGE:
+		velocity.x = 0.0
+		_pick_and_enter_attack()
+
+
+func _process_attack(delta: float) -> void:
+	attack_timer += delta
+	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
+
+	# Hitbox timing: active from frame 3 to frame 5 (out of 7 frames)
+	# At 5fps * speed_mult, each frame = 0.2s / speed_mult
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
+	var hitbox_start: float = frame_dur * 3.0
+	var hitbox_end: float = frame_dur * 5.5
+
+	if not hitbox_active and attack_timer >= hitbox_start:
+		attack_hitbox.monitoring = true
+		attack_hitbox.monitorable = true
+		hitbox_active = true
+
+	if hitbox_active and attack_timer >= hitbox_end:
+		attack_hitbox.monitoring = false
+		attack_hitbox.monitorable = false
+		hitbox_active = false
+
+	# Lunge forward slightly when swinging
+	if attack_timer >= hitbox_start and attack_timer < hitbox_start + frame_dur:
+		velocity.x = dir * 80.0
+
+
+func _process_combo(delta: float) -> void:
+	attack_timer += delta
+	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
+
+	# attack3 has 8 frames at 5fps * speed * 1.3
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.3)
+	var hitbox_start: float = frame_dur * 3.0
+	var hitbox_end: float = frame_dur * 5.0
+
+	if not hitbox_active and attack_timer >= hitbox_start:
+		attack_hitbox.monitoring = true
+		attack_hitbox.monitorable = true
+		hitbox_active = true
+
+	if hitbox_active and attack_timer >= hitbox_end:
+		attack_hitbox.monitoring = false
+		attack_hitbox.monitorable = false
+		hitbox_active = false
+
+	# Lunge on each hit
+	if attack_timer >= hitbox_start and attack_timer < hitbox_start + frame_dur:
+		velocity.x = dir * 60.0
+
+
+func _process_delay_attack(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
+
+	match delay_phase:
+		0:  # Wind-up phase: wait for frame 2, then pause
+			attack_timer += delta
+			var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
+			if attack_timer >= frame_dur * 3.0:
+				# Pause the animation at frame 2
+				anim.pause()
+				delay_phase = 1
+				delay_timer = DELAY_PAUSE
+		1:  # Pause phase: hold the wind-up pose
+			delay_timer -= delta
+			if delay_timer <= 0:
+				# Resume with fast swing
+				delay_phase = 2
+				attack_timer = 0.0
+				anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.5
+				anim.play("attack1")
+				anim.set_frame_and_progress(3, 0.0)
+		2:  # Swing phase
+			attack_timer += delta
+			var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
+
+			if not hitbox_active and attack_timer >= frame_dur * 0.5:
+				attack_hitbox.monitoring = true
+				attack_hitbox.monitorable = true
+				hitbox_active = true
+				velocity.x = dir * 100.0
+
+			if hitbox_active and attack_timer >= frame_dur * 2.5:
+				attack_hitbox.monitoring = false
+				attack_hitbox.monitorable = false
+				hitbox_active = false
+
+
+func _process_projectile(_delta: float) -> void:
+	# Projectile spawns on animation_finished
+	pass
+
+
+func _process_hurt(delta: float) -> void:
+	velocity.x = move_toward(velocity.x, 0.0, 400.0 * delta)
+	hurt_timer -= delta
+	if hurt_timer <= 0:
+		_enter_state(BossState.IDLE)
+
+
+# ── Animation Callback ──
+
+func _on_animation_finished() -> void:
+	if is_dead:
+		return
+
+	match state:
+		BossState.ATTACK1, BossState.ATTACK2:
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+			_enter_state(BossState.IDLE)
+
+		BossState.COMBO:
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+			combo_count += 1
+			if combo_count < COMBO_HITS:
+				# Next combo hit
+				attack_timer = 0.0
+				hitbox_active = false
+				_face_player()
+				anim.play("attack3")
+			else:
+				_enter_state(BossState.IDLE)
+
+		BossState.DELAY_ATTACK:
+			if delay_phase == 2:
+				attack_hitbox.monitoring = false
+				attack_hitbox.monitorable = false
+				hitbox_active = false
+				_enter_state(BossState.IDLE)
+
+		BossState.PROJECTILE:
+			_spawn_projectile()
+			_enter_state(BossState.IDLE)
+
+		BossState.DEATH:
+			# Boss is dead, could emit signal or queue_free
+			queue_free()
+
+		BossState.HURT:
+			pass  # Handled by timer
+
+
+# ── Attack Selection ──
+
+func _pick_and_enter_attack() -> void:
+	_face_player()
+	var attacks: Array[BossState] = []
+
+	# Phase 1: attack1 and attack2
+	attacks.append(BossState.ATTACK1)
+	attacks.append(BossState.ATTACK2)
+
+	# Phase 2+: add combo
+	if current_phase >= 2:
+		attacks.append(BossState.COMBO)
+
+	# Phase 3+: add delay attack and projectile
+	if current_phase >= 3:
+		attacks.append(BossState.DELAY_ATTACK)
+		attacks.append(BossState.PROJECTILE)
+
+	var chosen: BossState = attacks[randi() % attacks.size()]
+	_enter_state(chosen)
+
+
+# ── Combat ──
+
+func take_damage(amount: int, _from_position: Vector2) -> void:
+	if is_dead or is_invincible:
+		return
+
+	hp -= amount
+	hp = max(hp, 0)
+
+	_update_phase()
+	_flash_hit(0.4)
+
+	if hp <= 0:
+		_enter_state(BossState.DEATH)
+	else:
+		_enter_state(BossState.HURT)
+
+
+func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> void:
+	# Check if the parried area belongs to us
+	if enemy_area == attack_hitbox:
+		attack_hitbox.monitoring = false
+		attack_hitbox.monitorable = false
+		hitbox_active = false
+		# Brief stagger on parry with flash
+		if not is_dead and state != BossState.DEATH:
+			_flash_hit(0.3)
+			hurt_timer = 0.2
+			anim.speed_scale = 1.0
+			anim.play("takehit")
+			state = BossState.HURT
+
+
+## Flash the boss sprite (flicker like the player when hit).
+func _flash_hit(duration: float) -> void:
+	is_invincible = true
+	var tween = create_tween()
+	# Brief white flash then flickering
+	tween.tween_property(anim, "modulate", Color(3.0, 3.0, 3.0, 1.0), 0.03)
+	tween.tween_property(anim, "modulate", Color.WHITE, 0.03)
+	tween.set_loops(int(duration / 0.06))
+	tween.tween_property(anim, "modulate:a", 0.3, 0.03)
+	tween.tween_property(anim, "modulate:a", 1.0, 0.03)
+	tween.finished.connect(func():
+		is_invincible = false
+		anim.modulate = Color.WHITE
+	)
+
+
+func _update_phase() -> void:
+	var old_phase: int = current_phase
+	if hp <= PHASE_4_THRESHOLD:
+		current_phase = 4
+	elif hp <= PHASE_3_THRESHOLD:
+		current_phase = 3
+	elif hp <= PHASE_2_THRESHOLD:
+		current_phase = 2
+	else:
+		current_phase = 1
+
+	if current_phase != old_phase:
+		# Phase transition - could add visual feedback here
+		anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+
+
+# ── Projectile ──
+
+func _spawn_projectile() -> void:
+	if player == null:
+		return
+	var proj = projectile_scene.instantiate()
+	proj.global_position = global_position + Vector2(dir * 20, -5)
+	var aim_dir := Vector2(dir, 0).normalized()
+	proj.direction = aim_dir
+	get_parent().add_child(proj)
+
+
+# ── Helpers ──
+
+## White flash + swipe sound before each attack — gives the player a split-second warning.
+func _telegraph_attack() -> void:
+	telegraph_sfx.play()
+	# Quick bright-white flash on the boss sprite
+	anim.modulate = Color(3.0, 3.0, 3.0, 1.0)  # overbright white glint
+	var tween := create_tween()
+	tween.tween_property(anim, "modulate", Color.WHITE, 0.1)
+
+func _face_player() -> void:
+	if player == null:
+		return
+	var new_dir: int = 1 if player.global_position.x > global_position.x else -1
+	_update_direction(new_dir)
+
+
+func _update_direction(new_dir: int) -> void:
+	if new_dir == 0:
+		return
+	dir = new_dir
+	anim.flip_h = (dir == -1)
+	attack_pivot.scale.x = dir
+
+
+func _distance_to_player() -> float:
+	if player == null:
+		return 9999.0
+	return abs(player.global_position.x - global_position.x)

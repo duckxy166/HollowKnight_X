@@ -14,8 +14,8 @@ const COYOTE_TIME: float = 0.1
 const JUMP_BUFFER_TIME: float = 0.1
 
 # ── Dash ──
-const DASH_SPEED: float = 500.0
-const DASH_DURATION: float = 0.35
+const DASH_SPEED: float = 320.0
+const DASH_DURATION: float = 0.16
 
 # ── Combat ──
 const ATTACK_DURATION: float = 0.25
@@ -36,6 +36,8 @@ var health: int = 5
 
 # ── Preloads ──
 var slash_vfx_scene: PackedScene = preload("res://vfx/slash_vfx.tscn")
+var parry_vfx_scene: PackedScene = preload("res://vfx/parry_vfx.tscn")
+var dust_vfx_scene: PackedScene = preload("res://vfx/dust_vfx.tscn")
 
 # ── VFX tracking (prevent overlap) ──
 var current_slash_vfx: Node2D = null
@@ -51,6 +53,8 @@ var current_slash_vfx: Node2D = null
 @onready var dash_sfx: AudioStreamPlayer = $DashSFX
 @onready var footstep_sfx: AudioStreamPlayer = $FootstepSFX
 @onready var hero_dash_sfx: AudioStreamPlayer = $HeroDashSFX
+@onready var hit_sfx: AudioStreamPlayer = $HitSFX
+@onready var hero_parry_sfx: AudioStreamPlayer = $HeroParrySFX
 
 
 func _ready() -> void:
@@ -173,6 +177,10 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 	elif area.is_in_group("enemy_hurtbox"):
 		if area.get_parent().has_method("take_damage"):
 			area.get_parent().take_damage(1, global_position)
+		# Play hit sound
+		hit_sfx.play()
+		# Light screen shake on normal hit
+		GameManager.apply_screen_shake(2.0, 0.08)
 		# Pogo bounce on down-attack hit (Hollow Knight style)
 		if is_down_attacking:
 			velocity.y = JUMP_VELOCITY * 0.5
@@ -186,8 +194,23 @@ func _on_hurtbox_area_entered(area: Area2D) -> void:
 
 
 func _handle_parry(enemy_area: Area2D) -> void:
+	hero_parry_sfx.play()
 	GameManager.apply_hitstop(0.08)
 	GameManager.apply_recoil(self, enemy_area.global_position, RECOIL_STRENGTH)
+
+	# Big juicy parry feedback
+	GameManager.apply_screen_shake(6.0, 0.15)
+	GameManager.apply_screen_flash(0.08)
+
+	# Spawn sparks and dust at the contact point
+	var contact_pos := (global_position + enemy_area.global_position) / 2.0
+	var sparks = parry_vfx_scene.instantiate()
+	sparks.global_position = contact_pos
+	get_parent().add_child(sparks)
+	var dust = dust_vfx_scene.instantiate()
+	dust.global_position = contact_pos
+	get_parent().add_child(dust)
+
 	var enemy = enemy_area.get_parent()
 	if enemy is CharacterBody2D:
 		GameManager.apply_recoil(enemy, global_position, RECOIL_STRENGTH)

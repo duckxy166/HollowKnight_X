@@ -1,6 +1,8 @@
 [gd_scene format=3 uid="uid://d2hd10i4hu8fc"]
 
 [ext_resource type="PackedScene" uid="uid://eup0g8sfwn6q" path="res://player/player.tscn" id="1_player"]
+[ext_resource type="PackedScene" uid="uid://qv211r1t08pl" path="res://boss.tscn" id="2_boss"]
+[ext_resource type="PackedScene" path="res://ui/combat_hud.tscn" id="3_hud"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_floor"]
 size = Vector2(1400, 20)
@@ -13,8 +15,11 @@ size = Vector2(20, 800)
 
 [node name="TestArena" type="Node2D" unique_id=1257036456]
 
-[node name="Player" parent="." unique_id=1645096281 instance=ExtResource("1_player")]
+[node name="Player" parent="." unique_id=1645096281 groups=["player"] instance=ExtResource("1_player")]
 position = Vector2(200, 580)
+
+[node name="Boss" parent="." instance=ExtResource("2_boss")]
+position = Vector2(900, 580)
 
 [node name="Floor" type="StaticBody2D" parent="." unique_id=1917654243]
 position = Vector2(640, 680)
@@ -54,3 +59,5 @@ position = Vector2(1290, 360)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="WallRight" unique_id=1953952439]
 shape = SubResource("SubResource_wall")
+
+[node name="CombatHUD" parent="." instance=ExtResource("3_hud")]

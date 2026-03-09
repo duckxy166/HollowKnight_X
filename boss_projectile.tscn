@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://bmusc0ryfyreg"]
+
+[ext_resource type="Script" path="res://boss_projectile.gd" id="1_proj"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack001.png" id="2_ice1"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack002.png" id="3_ice2"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack003.png" id="4_ice3"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack004.png" id="5_ice4"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack005.png" id="6_ice5"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack006.png" id="7_ice6"]
+[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack007.png" id="8_ice7"]
+
+[sub_resource type="CircleShape2D" id="SubResource_proj_shape"]
+radius = 8.0
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_proj"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": ExtResource("2_ice1")
+}, {
+"duration": 1.0,
+"texture": ExtResource("3_ice2")
+}, {
+"duration": 1.0,
+"texture": ExtResource("4_ice3")
+}, {
+"duration": 1.0,
+"texture": ExtResource("5_ice4")
+}, {
+"duration": 1.0,
+"texture": ExtResource("6_ice5")
+}, {
+"duration": 1.0,
+"texture": ExtResource("7_ice6")
+}, {
+"duration": 1.0,
+"texture": ExtResource("8_ice7")
+}],
+"loop": true,
+"name": &"default",
+"speed": 10.0
+}]
+
+[node name="BossProjectile" type="Area2D" groups=["enemy_attack"]]
+collision_layer = 4
+collision_mask = 0
+monitoring = true
+monitorable = true
+script = ExtResource("1_proj")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+sprite_frames = SubResource("SpriteFrames_proj")
+animation = &"default"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("SubResource_proj_shape")
