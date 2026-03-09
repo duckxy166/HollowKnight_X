@@ -942,7 +942,11 @@ func _turn_on_hitbox(play_sound: bool = true) -> void:
 	if not parried_this_frame:
 		for area in overlapping_areas:
 			if area.name == "Hurtbox" and area.get_parent().has_method("take_damage"):
-				area.get_parent().take_damage(1, global_position)
+				var p = area.get_parent()
+				if p.has_method("is_auto_parrying") and p.is_auto_parrying():
+					p._handle_parry(attack_hitbox)
+				else:
+					p.take_damage(1, global_position)
 
 func _update_direction(new_dir: int) -> void:
 	if new_dir == 0:

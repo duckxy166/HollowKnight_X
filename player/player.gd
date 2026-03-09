@@ -33,6 +33,8 @@ var coyote_timer: float = 0.0
 var jump_buffer_timer: float = 0.0
 var attack_cooldown_timer: float = 0.0
 var health: int = 5
+var auto_parry_enabled: bool = false
+var allow_cheat_toggle: bool = false  # ต้องแก้เป็น true ในโค้ดถึงจะกด P เปิดโปร
 
 # ── Stamina ──
 const MAX_STAMINA: float = 10.0
@@ -217,10 +219,26 @@ func _on_attack_hitbox_area_entered(area: Area2D) -> void:
 
 func _on_hurtbox_area_entered(area: Area2D) -> void:
 	if area.is_in_group("enemy_attack"):
-		take_damage(1, area.global_position)
+		if auto_parry_enabled:
+			_handle_parry(area)
+		else:
+			take_damage(1, area.global_position)
 
+
+var last_parry_time: int = 0
 
 func _handle_parry(enemy_area: Area2D) -> void:
+	var now = Time.get_ticks_msec()
+	if now - last_parry_time < 100:
+		return
+	last_parry_time = now
+
+	# Auto-parry cheat visual: force an attack
+	if auto_parry_enabled and state_machine.current_state.name.to_lower() != "attack":
+		var face_dir = 1 if enemy_area.global_position.x > global_position.x else -1
+		update_direction(face_dir)
+		state_machine.transition_to("attack")
+
 	hero_parry_sfx.play()
 	GameManager.apply_hitstop(0.08)
 
@@ -245,9 +263,20 @@ func _handle_parry(enemy_area: Area2D) -> void:
 			was_boss_parrying_player = true
 			# We stagger the player
 			state_machine.transition_to("hurt")
+	elif enemy_area.has_method("on_parried"):
+		enemy_area.on_parried(global_position)
 	elif enemy.has_method("on_parried"):
 		enemy.on_parried(global_position)
 	
 	if not was_boss_parrying_player:
 		set_invincible(PARRY_IFRAMES)
 	GameManager.parry_occurred.emit(self, enemy_area)
+
+func is_auto_parrying() -> bool:
+	return auto_parry_enabled
+
+func _unhandled_input(event: InputEvent) -> void:
+	if allow_cheat_toggle and event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_P:
+			auto_parry_enabled = !auto_parry_enabled
+			print("Cheat Auto-Parry: ", auto_parry_enabled)
