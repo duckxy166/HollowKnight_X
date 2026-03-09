@@ -601,3 +601,6 @@ volume_db = 2.0
 
 [node name="SlashSFX" type="AudioStreamPlayer" parent="." unique_id=859707112]
 stream = ExtResource("21_slash_sfx")
+
+[node name="VoicePlayer" type="AudioStreamPlayer" parent="." unique_id=543210987]
+volume_db = 5.0

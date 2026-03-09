@@ -79,6 +79,17 @@ var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSFX
 @onready var parry_sfx: AudioStreamPlayer = $ParrySFX
 @onready var slash_sfx: AudioStreamPlayer = $SlashSFX
+@onready var voice_player: AudioStreamPlayer = $VoicePlayer
+
+var voice_hurts: Array[AudioStream] = [
+	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  2  .mp3"),
+	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  3  .mp3"),
+	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  5  .mp3")
+]
+var voice_good: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Good  2  .mp3")
+var voice_flight: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Take flight .mp3")
+var voice_defeat: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova You failed now sleep .mp3")
+var voice_victory: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova You all are wonderfull .mp3")
 
 
 func _ready() -> void:
@@ -102,6 +113,7 @@ func _ready() -> void:
 
 	# Listen for parry events
 	GameManager.parry_occurred.connect(_on_parry_occurred)
+	GameManager.player_died.connect(_on_player_died)
 
 	# Connect animation signals
 	anim.animation_finished.connect(_on_animation_finished)
@@ -284,6 +296,9 @@ func _enter_state(new_state: BossState) -> void:
 			attack_timer = 0.0
 			hitbox_active = false
 			player_air_time = 0.0  # reset after using this move
+			
+			voice_player.stream = voice_flight
+			voice_player.play()
 
 		BossState.BACKSTEP:
 			_face_player()
@@ -448,6 +463,8 @@ func _process_hurt(delta: float) -> void:
 func _on_animation_finished() -> void:
 	if is_dead:
 		if anim.animation == "death":
+			voice_player.stream = voice_victory
+			voice_player.play()
 			GameManager.boss_died.emit()
 		return
 
@@ -595,6 +612,12 @@ func _pick_and_enter_attack() -> void:
 	_enter_state(chosen)
 
 
+func _on_player_died() -> void:
+	if not is_dead:
+		voice_player.stream = voice_defeat
+		voice_player.play()
+
+
 # ── Combat ──
 
 func take_damage(amount: int, _from_position: Vector2) -> void:
@@ -609,6 +632,11 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 	hp -= amount
 	hp = max(hp, 0)
 	hurt_sfx.play()
+	
+	# Randomly play hurt voice (e.g. 30% chance)
+	if randf() < 0.3:
+		voice_player.stream = voice_hurts.pick_random()
+		voice_player.play()
 
 	# Getting hit a lot makes boss more likely to parry next time
 	parry_chance = min(parry_chance + PARRY_CHANCE_PER_HIT, PARRY_CHANCE_MAX)
@@ -640,7 +668,7 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 		# Play metallic parry block sound
 		parry_sfx.play()
 	else:
-		# Normal parry — boss staggers
+		# Normal parry — boss staggers (Player parried the boss)
 		attack_hitbox.monitoring = false
 		attack_hitbox.monitorable = false
 		hitbox_active = false
@@ -649,6 +677,11 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 		anim.speed_scale = 1.0
 		anim.play("takehit")
 		state = BossState.HURT
+		
+		# If the player successfully parries the boss: 50% chance to say "Good"
+		if randf() < 0.5:
+			voice_player.stream = voice_good
+			voice_player.play()
 
 
 ## Quick white flash when hit — boss keeps doing whatever it was doing.
