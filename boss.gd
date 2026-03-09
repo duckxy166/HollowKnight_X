@@ -8,7 +8,7 @@ enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE,
 const MAX_HP: int = 40
 const GRAVITY: float = 900.0
 const MAX_FALL_SPEED: float = 450.0
-const CHASE_SPEED: float = 100.0
+const CHASE_SPEED: float = 160.0
 const ATTACK_RANGE: float = 60.0
 const CHASE_RANGE: float = 300.0
 
@@ -17,8 +17,8 @@ const PHASE_2_THRESHOLD: int = 30  # 75%
 const PHASE_3_THRESHOLD: int = 20  # 50%
 const PHASE_4_THRESHOLD: int = 10  # 25%
 
-# Idle cooldowns per phase
-const IDLE_COOLDOWNS: Array[float] = [1.5, 1.0, 0.8, 0.2]
+# Idle cooldowns per phase (shorter = more aggressive)
+const IDLE_COOLDOWNS: Array[float] = [0.6, 0.4, 0.2, 0.0]
 # Animation speed multipliers per phase
 const SPEED_MULTIPLIERS: Array[float] = [1.0, 1.2, 1.2, 1.4]
 
@@ -61,6 +61,7 @@ var combo_count: int = 0
 var delay_phase: int = 0  # 0=windup, 1=pause, 2=swing
 var delay_timer: float = 0.0
 var hitbox_active: bool = false
+var current_hit_parried: bool = false  # prevents hitbox from re-opening after a parry mid-swing
 var is_dead: bool = false
 var lightning_timer: float = 0.0
 var lightning_spawned: bool = false
@@ -124,6 +125,11 @@ func _ready() -> void:
 	_enter_state(BossState.IDLE)
 
 
+func _exit_tree() -> void:
+	# Safety net: If boss dies and is deleted during a hit stop, reset time scale
+	Engine.time_scale = 1.0
+
+
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
@@ -175,6 +181,11 @@ func _physics_process(delta: float) -> void:
 
 func _enter_state(new_state: BossState) -> void:
 	state = new_state
+	# Always reset per-swing flags so nothing leaks across states
+	hitbox_active = false
+	current_hit_parried = false
+	# Reset hitbox position to default (air counter moves it above head)
+	attack_hitbox.position = Vector2.ZERO
 	match new_state:
 		BossState.IDLE:
 			idle_timer = IDLE_COOLDOWNS[current_phase - 1]
@@ -198,7 +209,6 @@ func _enter_state(new_state: BossState) -> void:
 			anim.play("attack1")
 			attack_timer = 0.0
 			hitbox_active = false
-			# Hitbox activates on frame 3 via _process_attack
 
 		BossState.ATTACK2:
 			_face_player()
@@ -212,8 +222,11 @@ func _enter_state(new_state: BossState) -> void:
 		BossState.COMBO:
 			_face_player()
 			_telegraph_attack()
+			# Extra charge-up flash to warn player: "a flurry is coming!"
+			telegraph_sfx.pitch_scale = 1.3  # higher pitch = distinct warning
 			velocity.x = 0.0
 			combo_count = 0
+			# Hit 1 starts at normal speed — the rhythm will change between hits
 			anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.8, 2.0)
 			anim.play("attack3")
 			attack_timer = 0.0
@@ -295,13 +308,14 @@ func _enter_state(new_state: BossState) -> void:
 		BossState.AIR_COUNTER:
 			_face_player()
 			velocity.x = 0.0
-			# Boss jumps upward toward player
 			velocity.y = AIR_COUNTER_JUMP_SPEED
 			anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.2, 2.0)
 			anim.play("attack1")  # overhead slash
 			attack_timer = 0.0
 			hitbox_active = false
-			player_air_time = 0.0  # reset after using this move
+			player_air_time = 0.0
+			# Move hitbox above boss's head to actually hit players standing on top
+			attack_hitbox.position = Vector2(0, -40)
 			
 			voice_player.stream = voice_flight
 			voice_player.play()
@@ -318,6 +332,13 @@ func _enter_state(new_state: BossState) -> void:
 			# i-frames while airborne so backstep actually works as an escape
 			hurtbox.monitoring = false
 			hurtbox.monitorable = false
+			
+			# Shake player off if they are riding the head
+			if player and player.is_on_floor() and global_position.y - player.global_position.y > 30.0:
+				if abs(global_position.x - player.global_position.x) < 30.0:
+					# Push them forward (opposite of our backstep) and slightly up
+					player.velocity.x = dir * 300.0
+					player.velocity.y = -150.0
 
 
 # ── State Processing ──
@@ -361,14 +382,14 @@ func _process_attack(delta: float) -> void:
 		hitbox_end = frame_dur * 3.0
 
 	if not hitbox_active and attack_timer >= hitbox_start:
-		attack_hitbox.monitoring = true
-		attack_hitbox.monitorable = true
+		attack_hitbox.set_deferred("monitoring", true)
+		attack_hitbox.set_deferred("monitorable", true)
 		hitbox_active = true
 		slash_sfx.play()
 
 	if hitbox_active and attack_timer >= hitbox_end:
-		attack_hitbox.monitoring = false
-		attack_hitbox.monitorable = false
+		attack_hitbox.set_deferred("monitoring", false)
+		attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
 
 	# Lunge forward slightly when swinging
@@ -380,26 +401,32 @@ func _process_combo(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# attack3: windup 3, hit 4
-	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.8)
-	var hitbox_start: float = frame_dur * 3.0
-	var hitbox_end: float = frame_dur * 4.5
+	# Use current anim speed_scale for frame timing
+	var current_speed: float = anim.speed_scale
+	# attack3 is an 8-frame animation at 5.0 FPS base
+	var frame_dur: float = 1.0 / (5.0 * current_speed)
+	# Opens just as the sword starts swinging down (around frame 3-4)
+	var hitbox_start: float = frame_dur * 3.5
 
-	if not hitbox_active and attack_timer >= hitbox_start:
-		attack_hitbox.monitoring = true
-		attack_hitbox.monitorable = true
+	# Open hitbox only if this swing hasn't been parried already
+	if not hitbox_active and not current_hit_parried and attack_timer >= hitbox_start:
+		attack_hitbox.set_deferred("monitoring", true)
+		attack_hitbox.set_deferred("monitorable", true)
 		hitbox_active = true
 		slash_sfx.pitch_scale = randf_range(0.9, 1.1)
 		slash_sfx.play()
 
-	if hitbox_active and attack_timer >= hitbox_end:
-		attack_hitbox.monitoring = false
-		attack_hitbox.monitorable = false
-		hitbox_active = false
+	# Note: We NO LONGER close the hitbox via `attack_timer >= hitbox_end`.
+	# During ultra-fast combos (3.0x speed), delta skips frames and causes the hitbox
+	# to open and close in the exact same physics tick, making it deal 0 damage.
+	# The hitbox will now remain open until `_on_animation_finished` cleans it up.
 
-	# Lunge on each hit
-	if attack_timer >= hitbox_start and attack_timer < hitbox_start + frame_dur:
-		velocity.x = dir * 60.0
+	# Lunge — short step for fast hits, big lunge for heavy finisher
+	if attack_timer >= hitbox_start and attack_timer < hitbox_start + (frame_dur * 2.0):
+		if combo_count == 2:  # finisher: commit hard
+			velocity.x = dir * 100.0
+		else:  # fast hits: small step so boss doesn't overshoot
+			velocity.x = dir * 40.0
 
 
 func _process_delay_attack(delta: float) -> void:
@@ -430,22 +457,27 @@ func _process_delay_attack(delta: float) -> void:
 			var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
 
 			if not hitbox_active and attack_timer >= frame_dur * 0.2:
-				attack_hitbox.monitoring = true
-				attack_hitbox.monitorable = true
+				attack_hitbox.set_deferred("monitoring", true)
+				attack_hitbox.set_deferred("monitorable", true)
 				hitbox_active = true
 				velocity.x = dir * 150.0
 				slash_sfx.pitch_scale = 0.8
 				slash_sfx.play()
 
 			if hitbox_active and attack_timer >= frame_dur * 2.0:
-				attack_hitbox.monitoring = false
-				attack_hitbox.monitorable = false
+				attack_hitbox.set_deferred("monitoring", false)
+				attack_hitbox.set_deferred("monitorable", false)
 				hitbox_active = false
 
 
-func _process_projectile(_delta: float) -> void:
-	# Projectile spawns on animation_finished
-	pass
+func _process_projectile(delta: float) -> void:
+	# Spawn projectile mid-animation (around frame 3-4) instead of waiting for anim to finish
+	attack_timer += delta
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
+	if not hitbox_active and attack_timer >= frame_dur * 3.0:
+		hitbox_active = true  # reuse flag to track "already spawned"
+		_spawn_projectile()
+		slash_sfx.play()
 
 
 func _process_lightning(delta: float) -> void:
@@ -472,41 +504,63 @@ func _process_hurt(delta: float) -> void:
 func _on_animation_finished() -> void:
 	if is_dead:
 		if anim.animation == "death":
+			hurt_voice_player.stop()  # kill lingering hurt grunts so they don't overlap the victory line
 			voice_player.stream = voice_victory
 			voice_player.play()
 			GameManager.boss_died.emit()
+			# Hide the boss sprite but keep the node alive until voice finishes
+			visible = false
+			await voice_player.finished
+			queue_free()
 		return
 
 	match state:
 		BossState.ATTACK1, BossState.ATTACK2:
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
 			_enter_state(BossState.IDLE)
 
 		BossState.COMBO:
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
 			combo_count += 1
+			
 			if combo_count < COMBO_HITS:
-				# Next combo hit
 				attack_timer = 0.0
-				hitbox_active = false
+				current_hit_parried = false  # reset for the next swing
 				_face_player()
+				
+				# === Rhythm pattern: fast-fast-SLOW (ปัง-ปัง...ปึ้ง!) ===
+				if combo_count == 1:
+					# Hit 2: blazing fast — catch players who panic-dodge
+					anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 2.5, 3.0)
+				elif combo_count == 2:
+					# Hit 3 (finisher): delayed heavy swing — bait early parry
+					anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.2, 1.5)
+				
+				# Force frame 0 for clean rhythm timing
 				anim.play("attack3")
+				anim.set_frame_and_progress(0, 0.0)
 			else:
-				_enter_state(BossState.IDLE)
+				# Combo over — backstep or idle to give player breathing room
+				telegraph_sfx.pitch_scale = 1.0  # reset pitch for next time
+				if randf() < 0.5:
+					_enter_state(BossState.BACKSTEP)
+				else:
+					_enter_state(BossState.IDLE)
 
 		BossState.DELAY_ATTACK:
 			if delay_phase == 2:
-				attack_hitbox.monitoring = false
-				attack_hitbox.monitorable = false
+				attack_hitbox.set_deferred("monitoring", false)
+				attack_hitbox.set_deferred("monitorable", false)
 				hitbox_active = false
 				_enter_state(BossState.IDLE)
 
 		BossState.PROJECTILE:
-			_spawn_projectile()
+			# Projectile now spawns mid-animation via _process_projectile
+			hitbox_active = false
 			_enter_state(BossState.IDLE)
 
 		BossState.DEATH:
@@ -527,16 +581,16 @@ func _process_parry_stance(delta: float) -> void:
 
 	# Hitbox active on frame 1
 	if not hitbox_active and attack_timer >= frame_dur * 1.0:
-		attack_hitbox.monitoring = true
-		attack_hitbox.monitorable = true
+		attack_hitbox.set_deferred("monitoring", true)
+		attack_hitbox.set_deferred("monitorable", true)
 		hitbox_active = true
 
 	if parry_did_block:
 		# Boss blocked! Brief pause then counterattack
 		if attack_timer >= 0.12:
 			anim.modulate = Color.WHITE
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
 			# Counterattack — fast attack1
 			_enter_state(BossState.ATTACK1)
@@ -546,80 +600,122 @@ func _process_parry_stance(delta: float) -> void:
 	if attack_timer >= 0.5:
 		# Nobody attacked — drop guard, go back to idle
 		anim.modulate = Color.WHITE
-		attack_hitbox.monitoring = false
-		attack_hitbox.monitorable = false
+		attack_hitbox.set_deferred("monitoring", false)
+		attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
 		_enter_state(BossState.IDLE)
 
 
-## Air counter — boss jumps up with an overhead slash to catch airborne players.
+## Air counter — boss launches upward with an overhead slash to punish airborne players.
 func _process_air_counter(delta: float) -> void:
 	attack_timer += delta
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.2)
 
-	# Air counter: windup 0, hit 1 (starts immediately)
+	# Keep thrusting upward during the windup/swing phase
+	if attack_timer < frame_dur * 3.0:
+		velocity.y = AIR_COUNTER_JUMP_SPEED
+
+	# Hitbox active from the start — wide upward sweep
 	if not hitbox_active and attack_timer >= 0.0:
-		attack_hitbox.monitoring = true
-		attack_hitbox.monitorable = true
+		attack_hitbox.set_deferred("monitoring", true)
+		attack_hitbox.set_deferred("monitorable", true)
 		hitbox_active = true
 		slash_sfx.pitch_scale = 1.2
 		slash_sfx.play()
 
+	# Shut hitbox after the swing arc
 	if hitbox_active and attack_timer >= frame_dur * 5.0:
-		attack_hitbox.monitoring = false
-		attack_hitbox.monitorable = false
+		attack_hitbox.set_deferred("monitoring", false)
+		attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
 
-	# Once boss lands back on floor, go back to idle
-	if attack_timer > frame_dur * 3.0 and is_on_floor():
-		attack_hitbox.monitoring = false
-		attack_hitbox.monitorable = false
+	# Landing logic: after swing phase, either slam down or land
+	if attack_timer > frame_dur * 3.0:
+		attack_hitbox.set_deferred("monitoring", false)
+		attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
-		_enter_state(BossState.IDLE)
+		if is_on_floor():
+			_enter_state(BossState.IDLE)
+		else:
+			# Gravity spike — slam back down fast instead of floating
+			velocity.y += 1500.0 * delta
 
 
 ## Backstep — boss quickly jumps backward to reposition.
 ## Has i-frames while airborne so it actually works as an escape maneuver.
 func _process_backstep(delta: float) -> void:
 	attack_timer += delta
-	# Re-enable hurtbox once boss lands so he can be hit again
 	if is_on_floor() and attack_timer > 0.1:
-		hurtbox.monitoring = true
-		hurtbox.monitorable = true
+		hurtbox.set_deferred("monitoring", true)
+		hurtbox.set_deferred("monitorable", true)
 		velocity.x = move_toward(velocity.x, 0.0, 800.0 * delta)
-		if velocity.x == 0:
-			_enter_state(BossState.IDLE)
+		if is_zero_approx(velocity.x):
+			# Chain into a counter-attack instead of going back to idle like an idiot
+			if current_phase >= 2 and randf() < 0.6:
+				_enter_state(BossState.PROJECTILE)  # backstep + shoot
+			else:
+				_enter_state(BossState.IDLE)
 
 
 # ── Attack Selection ──
 
 func _pick_and_enter_attack() -> void:
 	_face_player()
+	
+	# Calculate distances with separate axes for accurate checks
 	var dist = _distance_to_player()
+	var y_dist: float = 0.0  # positive = player is above boss
+	var x_dist: float = 999.0  # horizontal only
+	
+	if player:
+		y_dist = global_position.y - player.global_position.y
+		x_dist = abs(global_position.x - player.global_position.x)
+
 	var chosen: BossState = BossState.IDLE
 
-	# Check Air Counter first (Phase 2+)
-	if current_phase >= 2 and player and not player.is_on_floor() and player_air_time >= 0.3:
-		chosen = BossState.AIR_COUNTER
-	else:
-		if dist < ATTACK_RANGE * 1.5:
-			# Close Range - Melee or Backstep
-			var melee_pool = [BossState.ATTACK1, BossState.ATTACK2]
-			if current_phase >= 2: melee_pool.append(BossState.COMBO)
-			if current_phase >= 3: melee_pool.append(BossState.DELAY_ATTACK)
-			
-			# If very close, boss might choose to back away instead
-			if dist < ATTACK_RANGE * 0.8 and randf() < 0.3:
-				chosen = BossState.BACKSTEP
-			else:
-				chosen = melee_pool.pick_random()
+	# 1. Head-riding check FIRST (highest priority) — uses x_dist, not Euclidean dist
+	if y_dist > 30.0 and x_dist < 30.0:
+		if current_phase >= 3:
+			_enter_state(BossState.LIGHTNING)  # self-targeted zap to punish the rider
 		else:
-			# Long Range - Chase or Ranged
-			var range_pool = [BossState.CHASE]
-			if current_phase >= 3:
-				range_pool.append(BossState.PROJECTILE)
-				range_pool.append(BossState.LIGHTNING)
-			chosen = range_pool.pick_random()
+			_enter_state(BossState.BACKSTEP)  # roll away to shake them off
+		return
+
+	# 2. Anti-air: player airborne too long or floating above but not directly on top
+	if player and ((not player.is_on_floor() and player_air_time >= 0.3) or y_dist > 40.0):
+		_enter_state(BossState.AIR_COUNTER)
+		return
+
+	# 3. Ground-based zone selection
+	if dist <= ATTACK_RANGE * 1.5:
+		# --- Melee zone ---
+		var melee_pool = [BossState.ATTACK1, BossState.ATTACK2]
+		if current_phase >= 2:
+			melee_pool.append(BossState.COMBO)
+		if current_phase >= 3:
+			melee_pool.append(BossState.DELAY_ATTACK)
+		
+		if dist < ATTACK_RANGE * 0.8 and current_phase >= 2 and randf() < 0.4:
+			chosen = BossState.BACKSTEP
+		else:
+			chosen = melee_pool.pick_random()
+
+	elif dist <= ATTACK_RANGE * 4.0:
+		# --- Mid range ---
+		var mid_pool = [BossState.CHASE]
+		if current_phase >= 2:
+			mid_pool.append(BossState.PROJECTILE)
+			mid_pool.append(BossState.DELAY_ATTACK)
+		chosen = mid_pool.pick_random()
+
+	else:
+		# --- Long range ---
+		var long_pool = [BossState.CHASE]
+		if current_phase >= 2:
+			long_pool.append(BossState.PROJECTILE)
+		if current_phase >= 3:
+			long_pool.append(BossState.LIGHTNING)
+		chosen = long_pool.pick_random()
 
 	_enter_state(chosen)
 
@@ -628,6 +724,9 @@ func _on_player_died() -> void:
 	if not is_dead:
 		voice_player.stream = voice_defeat
 		voice_player.play()
+		# Stop fighting — no more corpse-stomping after player is dead
+		player = null
+		_enter_state(BossState.IDLE)
 
 
 # ── Combat ──
@@ -636,10 +735,15 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 	if is_dead:
 		return
 
-	# Check if boss auto-parries this hit (escalating chance)
-	if parry_chance > 0 and randf() < parry_chance:
-		_auto_parry()
-		return
+	# Guard break FIRST — if boss is blocking and gets hit from behind, stagger immediately
+	if state == BossState.PARRY_STANCE:
+		_enter_state(BossState.HURT)
+	else:
+		# Hyper armor: boss won't cancel committal attacks into a parry
+		var hyper_armor_states = [BossState.LIGHTNING, BossState.PROJECTILE, BossState.AIR_COUNTER, BossState.DELAY_ATTACK]
+		if state not in hyper_armor_states and parry_chance > 0 and randf() < parry_chance:
+			_auto_parry()
+			return
 
 	hp -= amount
 	hp = max(hp, 0)
@@ -661,7 +765,6 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 
 
 func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> void:
-	# Check if the parried area belongs to us
 	if enemy_area != attack_hitbox:
 		return
 	if is_dead or state == BossState.DEATH:
@@ -669,31 +772,43 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 
 	if state == BossState.PARRY_STANCE:
 		# Boss SUCCESSFULLY blocked the player's attack!
-		# Don't stagger — mark the block and let _process_parry_stance counterattack
 		parry_did_block = true
-		attack_timer = 0.0  # reset timer for the counter delay
-		# Flash white to show the clash
+		attack_timer = 0.0
+		_apply_hit_stop(0.1, 0.01)  # dramatic freeze — boss shows dominance
+		
 		anim.modulate = Color(3.0, 3.0, 3.0, 1.0)
 		var tween := create_tween()
 		tween.tween_property(anim, "modulate", Color(0.6, 0.7, 1.0, 1.0), 0.08)
-		
-		# Play metallic parry block sound
 		parry_sfx.play()
 	else:
-		# Normal parry — boss staggers (Player parried the boss)
-		attack_hitbox.monitoring = false
-		attack_hitbox.monitorable = false
+		# Player parried the boss — kill the hitbox so it can't re-open
+		attack_hitbox.set_deferred("monitoring", false)
+		attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
-		_brief_flash()
-		hurt_timer = 0.2
-		anim.speed_scale = 1.0
-		anim.play("takehit")
-		state = BossState.HURT
+		current_hit_parried = true  # lock this swing's hitbox permanently
 		
-		# If the player successfully parries the boss: 15% chance to say "Good"
-		if randf() < 0.15:
-			voice_player.stream = voice_good
-			voice_player.play()
+		if state == BossState.COMBO and combo_count < COMBO_HITS - 1:
+			# Mid-combo parry: boss doesn't flinch! Flurry continues relentlessly
+			_apply_hit_stop(0.02, 0.1)
+			_brief_flash()  # visual feedback only — no stagger, no state change
+			parry_sfx.play()
+		else:
+			# Finisher parry or normal attack parry: boss staggers!
+			if state == BossState.COMBO:
+				_apply_hit_stop(0.15, 0.02)  # big satisfying freeze
+			else:
+				_apply_hit_stop(0.08, 0.1)
+			
+			_brief_flash()
+			hurt_timer = 0.2
+			anim.speed_scale = 1.0
+			anim.play("takehit")
+			state = BossState.HURT
+			
+			# 15% chance boss acknowledges a good parry
+			if randf() < 0.15:
+				voice_player.stream = voice_good
+				voice_player.play()
 
 
 ## Quick white flash when hit — boss keeps doing whatever it was doing.
@@ -739,7 +854,8 @@ func _spawn_projectile() -> void:
 		return
 	var proj = projectile_scene.instantiate()
 	proj.global_position = global_position + Vector2(dir * 20, -5)
-	var aim_dir := Vector2(dir, 0).normalized()
+	# Aim at the player's center mass — explicit Vector2 type to avoid parse error
+	var aim_dir: Vector2 = (player.global_position - proj.global_position).normalized()
 	proj.direction = aim_dir
 	proj.boss_phase = current_phase
 	get_parent().add_child(proj)
@@ -763,7 +879,13 @@ func _spawn_lightning_strikes() -> void:
 	elif "velocity" in player:
 		lead_distance = player.velocity.x * 0.5
 	
-	var target_x: float = clamp(player.global_position.x + lead_distance, arena_min_x, arena_max_x)
+	var target_x: float
+	
+	# If player is head-riding, strike our own head to shake them off!
+	if abs(global_position.x - player.global_position.x) < 30.0 and global_position.y - player.global_position.y > 30.0:
+		target_x = global_position.x
+	else:
+		target_x = clamp(player.global_position.x + lead_distance, arena_min_x, arena_max_x)
 
 	# One strike targets predicted player position
 	var positions: Array[float] = [target_x]
@@ -802,6 +924,14 @@ func _update_direction(new_dir: int) -> void:
 	dir = new_dir
 	anim.flip_h = (dir == -1)
 	attack_pivot.scale.x = dir
+
+
+## Freeze the game for a split-second on big clashes — makes hits feel weighty (Sekiro-style)
+func _apply_hit_stop(duration: float = 0.08, time_scale: float = 0.05) -> void:
+	Engine.time_scale = time_scale
+	# Timer uses ignore_time_scale=true, so pass real-world duration directly (no multiplication!)
+	await get_tree().create_timer(duration, true, false, true).timeout
+	Engine.time_scale = 1.0
 
 
 func _distance_to_player() -> float:

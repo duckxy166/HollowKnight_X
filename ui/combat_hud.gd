@@ -10,12 +10,16 @@ extends CanvasLayer
 @onready var potion_label: Label = $PotionLabel
 @onready var game_over_panel: ColorRect = $GameOverPanel
 @onready var victory_panel: ColorRect = $VictoryPanel
+@onready var pause_panel: ColorRect = $PausePanel
 
 var player: CharacterBody2D = null
 var boss: CharacterBody2D = null
 
 
 func _ready() -> void:
+	# UI must process even when the game is paused!
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	
 	# Wait a frame so every node is in the tree
 	await get_tree().process_frame
 	player = get_tree().get_first_node_in_group("player")
@@ -38,9 +42,19 @@ func _ready() -> void:
 	# UI setup
 	game_over_panel.hide()
 	victory_panel.hide()
+	pause_panel.hide()
 	GameManager.player_died.connect(_on_player_died)
 	GameManager.boss_died.connect(_on_boss_died)
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		# Ignore pause if game is over
+		if game_over_panel.visible or victory_panel.visible:
+			return
+		
+		var tree = get_tree()
+		tree.paused = !tree.paused
+		pause_panel.visible = tree.paused
 
 func _process(_delta: float) -> void:
 	# Update boss bar

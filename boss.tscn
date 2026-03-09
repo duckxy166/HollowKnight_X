@@ -10,16 +10,16 @@
 [ext_resource type="Texture2D" uid="uid://ddpdp0jcry0yi" path="res://asset/enemy/boss/Jump.png" id="15_cm1kr"]
 [ext_resource type="Texture2D" uid="uid://df06i8l6mvwqw" path="res://asset/enemy/boss/Run.png" id="16_akhi5"]
 [ext_resource type="Texture2D" uid="uid://ba2xt2cw323j4" path="res://asset/enemy/boss/Take hit.png" id="17_vwlhh"]
-[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/08_human_charge_1.wav" id="18_telegraph"]
-[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/11_human_damage_1.wav" id="19_hurt"]
-[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/26_sword_hit_1.wav" id="20_parry_sfx"]
-[ext_resource type="AudioStream" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/27_sword_miss_1.wav" id="21_slash_sfx"]
+[ext_resource type="AudioStream" uid="uid://bjd3a6ueua4e0" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/08_human_charge_1.wav" id="18_telegraph"]
+[ext_resource type="AudioStream" uid="uid://d4btbieb68ct4" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/11_human_damage_1.wav" id="19_hurt"]
+[ext_resource type="AudioStream" uid="uid://c6lvcs3nrb3nv" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/26_sword_hit_1.wav" id="20_parry_sfx"]
+[ext_resource type="AudioStream" uid="uid://crk5dpjx46870" path="res://asset/effect/boss/Minifantasy_Dungeon_SFX/27_sword_miss_1.wav" id="21_slash_sfx"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_body"]
 size = Vector2(14, 44)
 
 [sub_resource type="RectangleShape2D" id="SubResource_atkbox"]
-size = Vector2(34, 22)
+size = Vector2(49.5, 30)
 
 [sub_resource type="RectangleShape2D" id="SubResource_hurtbox"]
 size = Vector2(20, 44)
@@ -567,13 +567,14 @@ shape = SubResource("SubResource_body")
 [node name="AttackPivot" type="Node2D" parent="." unique_id=504794119]
 
 [node name="AttackHitbox" type="Area2D" parent="AttackPivot" unique_id=1688875831 groups=["enemy_attack"]]
-position = Vector2(25, -2)
+position = Vector2(32, -2)
 collision_layer = 4
 collision_mask = 0
 monitoring = false
 monitorable = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackPivot/AttackHitbox" unique_id=578274034]
+position = Vector2(-2.75, 0)
 shape = SubResource("SubResource_atkbox")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=100774917 groups=["enemy_hurtbox"]]
@@ -586,7 +587,9 @@ shape = SubResource("SubResource_hurtbox")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=662270678]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"air_counter"
+animation = &"attack3"
+frame = 7
+frame_progress = 1.0
 
 [node name="TelegraphSFX" type="AudioStreamPlayer" parent="." unique_id=937178032]
 stream = ExtResource("18_telegraph")
