@@ -25,7 +25,7 @@ func _ready() -> void:
 	add_to_group("enemy_attack")
 	# Load lightning frames
 	for i in range(1, TOTAL_FRAMES + 1):
-		textures.append(load("res://asset/VFX/lightning/lightning/lightning_v2_%d.png" % i))
+		textures.append(load("res://asset/fx/lightning/lightning_v2_%d.png" % i))
 
 	# Start with telegraph only, no hitbox
 	sprite.visible = false

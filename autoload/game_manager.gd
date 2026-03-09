@@ -6,9 +6,11 @@ extends Node
 signal parry_occurred(player_node: Node2D, enemy_area: Area2D)
 
 ## Emitted when the player's death animation finishes and the restart UI should appear
+@warning_ignore("unused_signal")
 signal player_died
 
 ## Emitted when the boss is defeated
+@warning_ignore("unused_signal")
 signal boss_died
 
 

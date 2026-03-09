@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://dnu1s7n1fm86e"
+path="res://.godot/imported/Voicy_Valorant Sova You all are wonderfull .mp3-982e0e80174dfe0311bc08947ea84b03.mp3str"
+
+[deps]
+
+source_file="res://asset/sfx/boss_voice/Voicy_Valorant Sova You all are wonderfull .mp3"
+dest_files=["res://.godot/imported/Voicy_Valorant Sova You all are wonderfull .mp3-982e0e80174dfe0311bc08947ea84b03.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

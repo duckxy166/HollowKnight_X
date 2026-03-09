@@ -84,15 +84,15 @@ var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 @onready var hurt_voice_player: AudioStreamPlayer = $HurtVoicePlayer
 
 var voice_hurts: Array[AudioStream] = [
-	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  2  .mp3"),
-	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  3  .mp3"),
-	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  5  .mp3")
+	preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova Ah  2  .mp3"),
+	preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova Ah  3  .mp3"),
+	preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova Ah  5  .mp3")
 ]
-var voice_good: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Good  2  .mp3")
-var voice_flight: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Take flight .mp3")
-var voice_defeat: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova You failed now sleep .mp3")
-var voice_victory: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova You all are wonderfull .mp3")
-var voice_lightning: AudioStream = preload("res://asset/effect/boss/Voicy_Valorant Sova Nowhere to run  .mp3")
+var voice_good: AudioStream = preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova Good  2  .mp3")
+var voice_flight: AudioStream = preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova Take flight .mp3")
+var voice_defeat: AudioStream = preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova You failed now sleep .mp3")
+var voice_victory: AudioStream = preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova You all are wonderfull .mp3")
+var voice_lightning: AudioStream = preload("res://asset/sfx/boss_voice/Voicy_Valorant Sova Nowhere to run  .mp3")
 
 
 func _ready() -> void:
@@ -926,18 +926,22 @@ func _turn_on_hitbox(play_sound: bool = true) -> void:
 	if play_sound:
 		slash_sfx.play()
 
-	# Overlap Desync Fix: กวาดหาเป้าหมายตอนเปิดดาบ
+	# Overlap Desync Fix: defer so monitoring is on when the check runs
+	call_deferred("_check_initial_overlaps")
+
+func _check_initial_overlaps() -> void:
+	if not hitbox_active:
+		return
 	var overlapping_areas = attack_hitbox.get_overlapping_areas()
 	var parried_this_frame = false
-	
+
 	# 1. เช็คก่อนว่าดาบเรา ไปซ้อนทับกับดาบผู้เล่น (AttackHitbox) หรือไม่?
 	for area in overlapping_areas:
 		if area.name == "AttackHitbox" and area.get_parent().has_method("_handle_parry"):
-			# ชนดาบผู้เล่นพอดี! บังคับให้เกิดการปัดป้อง (Parry) ทันที
 			area.get_parent()._handle_parry(attack_hitbox)
 			parried_this_frame = true
-			break # หลุดออกจากลูป เพราะดาบโดนปัดไปแล้ว
-			
+			break
+
 	# 2. ถ้าไม่ได้โดนปัดป้อง ค่อยเช็คว่าฟันโดนตัว (Hurtbox) ไหม
 	if not parried_this_frame:
 		for area in overlapping_areas:

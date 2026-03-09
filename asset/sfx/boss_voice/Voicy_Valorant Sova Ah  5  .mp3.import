@@ -1,0 +1,19 @@
+[remap]
+
+importer="mp3"
+type="AudioStreamMP3"
+uid="uid://cyvtcygdr427c"
+path="res://.godot/imported/Voicy_Valorant Sova Ah  5  .mp3-80da2e0f90bf75b79f9fe33c12a6485f.mp3str"
+
+[deps]
+
+source_file="res://asset/sfx/boss_voice/Voicy_Valorant Sova Ah  5  .mp3"
+dest_files=["res://.godot/imported/Voicy_Valorant Sova Ah  5  .mp3-80da2e0f90bf75b79f9fe33c12a6485f.mp3str"]
+
+[params]
+
+loop=false
+loop_offset=0
+bpm=0
+beat_count=0
+bar_beats=4

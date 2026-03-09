@@ -10,7 +10,7 @@ var current_frame: int = 0
 const TOTAL_FRAMES: int = 16
 const VFX_FPS: float = 20.0
 
-var dust_texture: Texture2D = preload("res://asset/VFX/BIG IMPACT SMOKE.png")
+var dust_texture: Texture2D = preload("res://asset/fx/impact/BIG IMPACT SMOKE.png")
 
 
 func _ready() -> void:

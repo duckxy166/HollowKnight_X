@@ -1,13 +1,13 @@
 [gd_scene format=3 uid="uid://bmusc0ryfyreg"]
 
 [ext_resource type="Script" path="res://boss_projectile.gd" id="1_proj"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack001.png" id="2_ice1"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack002.png" id="3_ice2"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack003.png" id="4_ice3"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack004.png" id="5_ice4"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack005.png" id="6_ice5"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack006.png" id="7_ice6"]
-[ext_resource type="Texture2D" path="res://asset/Projectile (boss)/ice_attack007.png" id="8_ice7"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack001.png" id="2_ice1"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack002.png" id="3_ice2"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack003.png" id="4_ice3"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack004.png" id="5_ice4"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack005.png" id="6_ice5"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack006.png" id="7_ice6"]
+[ext_resource type="Texture2D" path="res://asset/projectiles/boss_ice/ice_attack007.png" id="8_ice7"]
 
 [sub_resource type="CircleShape2D" id="SubResource_proj_shape"]
 radius = 8.0

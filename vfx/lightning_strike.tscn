@@ -1,7 +1,7 @@
 [gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://vfx/lightning_strike.gd" id="1_script"]
-[ext_resource type="AudioStream" path="res://asset/VFX/ahmed_abdulaal-laser-312360.mp3" id="2_laser"]
+[ext_resource type="AudioStream" path="res://asset/sfx/ability/ahmed_abdulaal-laser-312360.mp3" id="2_laser"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_shape"]
 size = Vector2(18, 300)

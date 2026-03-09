@@ -10,7 +10,7 @@ var current_frame: int = 0
 const TOTAL_FRAMES: int = 10
 const VFX_FPS: float = 24.0
 
-var spark_texture: Texture2D = preload("res://asset/VFX/EXPLOSION.png")
+var spark_texture: Texture2D = preload("res://asset/fx/impact/EXPLOSION.png")
 
 
 func _ready() -> void:

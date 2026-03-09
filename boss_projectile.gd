@@ -36,7 +36,7 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 
-func on_parried(player_position: Vector2) -> void:
+func on_parried(_player_position: Vector2) -> void:
 	if reflected:
 		return
 

@@ -11,7 +11,7 @@ const TOTAL_FRAMES: int = 13
 const VFX_FPS: float = 26.0
 
 # Single consistent red minimal slash
-var slash_texture: Texture2D = preload("res://asset/VFX/pyke/SlashFX 5A v1_1.png")
+var slash_texture: Texture2D = preload("res://asset/fx/slash/SlashFX 5A v1_1.png")
 
 
 func _ready() -> void:
