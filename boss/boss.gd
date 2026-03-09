@@ -192,8 +192,8 @@ func _enter_state(new_state: BossState) -> void:
 			velocity.x = 0.0
 			anim.speed_scale = 1.0
 			anim.play("idle")
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
 
 		BossState.CHASE:
@@ -260,8 +260,8 @@ func _enter_state(new_state: BossState) -> void:
 			anim.play("lighningCharge")
 			lightning_timer = LIGHTNING_CHARGE_TIME
 			lightning_spawned = false
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
 			# Voice line plays at START of charge so it works as a telegraph/warning
 			voice_player.stream = voice_lightning
@@ -272,8 +272,8 @@ func _enter_state(new_state: BossState) -> void:
 			hurt_timer = 0.3
 			anim.speed_scale = 1.0
 			anim.play("takehit")
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
 
 		BossState.DEATH:
@@ -281,11 +281,11 @@ func _enter_state(new_state: BossState) -> void:
 			velocity = Vector2.ZERO
 			anim.speed_scale = 1.0
 			anim.play("death")
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
+			attack_hitbox.set_deferred("monitoring", false)
+			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
-			hurtbox.monitoring = false
-			hurtbox.monitorable = false
+			hurtbox.set_deferred("monitoring", false)
+			hurtbox.set_deferred("monitorable", false)
 			body_collision.set_deferred("disabled", true)
 
 		BossState.PARRY_STANCE:
@@ -301,8 +301,8 @@ func _enter_state(new_state: BossState) -> void:
 			# Blue tint = guard mode (visual telegraph for the player)
 			anim.modulate = Color(0.6, 0.7, 1.0, 1.0)
 			# Hitbox active immediately — if player swings into this, it triggers parry
-			attack_hitbox.monitoring = true
-			attack_hitbox.monitorable = true
+			attack_hitbox.set_deferred("monitoring", true)
+			attack_hitbox.set_deferred("monitorable", true)
 			hitbox_active = true
 
 		BossState.AIR_COUNTER:
@@ -330,8 +330,8 @@ func _enter_state(new_state: BossState) -> void:
 			attack_timer = 0.0
 			hitbox_active = false
 			# i-frames while airborne so backstep actually works as an escape
-			hurtbox.monitoring = false
-			hurtbox.monitorable = false
+			hurtbox.set_deferred("monitoring", false)
+			hurtbox.set_deferred("monitorable", false)
 			
 			# Shake player off if they are riding the head
 			if player and player.is_on_floor() and global_position.y - player.global_position.y > 30.0:

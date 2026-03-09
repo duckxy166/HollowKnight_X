@@ -35,7 +35,7 @@ var jump_buffer_timer: float = 0.0
 var attack_cooldown_timer: float = 0.0
 var health: int = 5
 var auto_parry_enabled: bool = false
-var allow_cheat_toggle: bool = true  # ต้องแก้เป็น true ในโค้ดถึงจะกด P เปิดโปร
+var allow_cheat_toggle: bool = false  # ต้องแก้เป็น true ในโค้ดถึงจะกด P เปิดโปร
 
 # ── Stamina ──
 const MAX_STAMINA: float = 10.0

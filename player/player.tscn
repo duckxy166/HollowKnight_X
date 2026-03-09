@@ -54,6 +54,10 @@ region = Rect2(480, 0, 32, 32)
 atlas = ExtResource("2_pyke")
 region = Rect2(512, 0, 32, 32)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_q28gw"]
+atlas = ExtResource("2_pyke")
+region = Rect2(576, 0, 32, 32)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_65viv"]
 atlas = ExtResource("3_atk")
 region = Rect2(0, 0, 32, 32)
@@ -150,6 +154,14 @@ animations = [{
 }],
 "loop": true,
 "name": &"dash",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_q28gw")
+}],
+"loop": true,
+"name": &"death",
 "speed": 5.0
 }, {
 "frames": [{
@@ -290,7 +302,7 @@ position_smoothing_speed = 8.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=715941305]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"attack"
+animation = &"death"
 
 [node name="SlashSFX" type="AudioStreamPlayer" parent="." unique_id=813787500]
 stream = ExtResource("10_swipe")
