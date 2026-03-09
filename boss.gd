@@ -554,10 +554,6 @@ func _on_animation_finished() -> void:
 			hitbox_active = false
 			_enter_state(BossState.IDLE)
 
-		BossState.DEATH:
-			# Boss is dead, could emit signal or queue_free
-			queue_free()
-
 		BossState.HURT:
 			pass  # Handled by timer
 
@@ -721,9 +717,10 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 	if is_dead:
 		return
 
-	# Guard break FIRST — if boss is blocking and gets hit from behind, stagger immediately
+	# Guard break FIRST — stagger only, no HP loss
 	if state == BossState.PARRY_STANCE:
 		_enter_state(BossState.HURT)
+		return
 	else:
 		# Hyper armor: boss won't cancel committal attacks into a parry
 		var hyper_armor_states = [BossState.LIGHTNING, BossState.PROJECTILE, BossState.AIR_COUNTER, BossState.DELAY_ATTACK]

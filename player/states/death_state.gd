@@ -4,11 +4,12 @@ var death_timer: float = 0.0
 
 func enter() -> void:
 	character.velocity = Vector2.ZERO
+	character.play_anim("death")
 	# Disable collisions so enemies pass through the dead body
 	character.collision_layer = 0
 	character.collision_mask = 1 # Only collide with floor
-	character.hurtbox.monitoring = false
-	character.hurtbox.monitorable = false
+	character.hurtbox.set_deferred("monitoring", false)
+	character.hurtbox.set_deferred("monitorable", false)
 	
 	# Start blink effect
 	var tween = create_tween()

@@ -36,8 +36,9 @@ func _ready() -> void:
 		boss_bar.max_value = boss.MAX_HP
 		boss_bar.value = boss.hp
 	if player:
-		player_bar.max_value = player.health
+		player_bar.max_value = player.MAX_HEALTH
 		player_bar.value = player.health
+		stamina_bar.max_value = player.MAX_STAMINA
 
 	# UI setup
 	game_over_panel.hide()

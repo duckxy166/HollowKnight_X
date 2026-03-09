@@ -18,6 +18,7 @@ const DASH_SPEED: float = 320.0
 const DASH_DURATION: float = 0.16
 
 # ── Combat ──
+const MAX_HEALTH: int = 5
 const ATTACK_DURATION: float = 0.25
 const ATTACK_COOLDOWN: float = 0.35
 const PARRY_IFRAMES: float = 0.2
@@ -34,7 +35,7 @@ var jump_buffer_timer: float = 0.0
 var attack_cooldown_timer: float = 0.0
 var health: int = 5
 var auto_parry_enabled: bool = false
-var allow_cheat_toggle: bool = false  # ต้องแก้เป็น true ในโค้ดถึงจะกด P เปิดโปร
+var allow_cheat_toggle: bool = true  # ต้องแก้เป็น true ในโค้ดถึงจะกด P เปิดโปร
 
 # ── Stamina ──
 const MAX_STAMINA: float = 10.0
@@ -274,6 +275,10 @@ func _handle_parry(enemy_area: Area2D) -> void:
 
 func is_auto_parrying() -> bool:
 	return auto_parry_enabled
+
+
+func on_parried_by_boss() -> void:
+	state_machine.transition_to("hurt")
 
 func _unhandled_input(event: InputEvent) -> void:
 	if allow_cheat_toggle and event is InputEventKey and event.pressed and not event.echo:

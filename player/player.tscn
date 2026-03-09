@@ -9,7 +9,7 @@
 [ext_resource type="Script" uid="uid://bdqyv0qj2vxnb" path="res://player/states/dash_state.gd" id="7_dsh"]
 [ext_resource type="Script" uid="uid://ce1ewggbg343k" path="res://player/states/attack_state.gd" id="8_atk"]
 [ext_resource type="Script" uid="uid://due1c30yjkl78" path="res://player/states/hurt_state.gd" id="9_hrt"]
-[ext_resource type="Script" path="res://player/states/death_state.gd" id="10_dth"]
+[ext_resource type="Script" uid="uid://1ir1ll7v30xq" path="res://player/states/death_state.gd" id="10_dth"]
 [ext_resource type="AudioStream" uid="uid://qv0s4v652y44" path="res://asset/sfx/player/swipe.wav" id="10_swipe"]
 [ext_resource type="AudioStream" uid="uid://c46j4gkkrill3" path="res://asset/sfx/player/Pyke_Original_QRange_0.ogg" id="11_dash"]
 [ext_resource type="AudioStream" uid="uid://dgi214ypyq1b2" path="res://asset/sfx/player/foley_footstep_concrete_4.wav" id="12_foot"]
@@ -290,7 +290,7 @@ position_smoothing_speed = 8.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=715941305]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"was_parry"
+animation = &"attack"
 
 [node name="SlashSFX" type="AudioStreamPlayer" parent="." unique_id=813787500]
 stream = ExtResource("10_swipe")
