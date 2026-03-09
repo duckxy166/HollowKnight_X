@@ -98,7 +98,7 @@ var voice_lightning: AudioStream = preload("res://asset/sfx/boss_voice/Voicy_Val
 func _ready() -> void:
 	floor_constant_speed = true
 	add_to_group("boss")
-	# Boss attack hitbox starts fully hidden so player can't parry when boss isn't swinging
+	# ปิดทั้งหมดตอนเริ่ม — จะเปิดเฉพาะตอนฟันจริงๆ เท่านั้น
 	attack_hitbox.monitoring = false
 	attack_hitbox.monitorable = false
 
@@ -301,7 +301,6 @@ func _enter_state(new_state: BossState) -> void:
 			# Blue tint = guard mode (visual telegraph for the player)
 			anim.modulate = Color(0.6, 0.7, 1.0, 1.0)
 			# Hitbox active immediately — if player swings into this, it triggers parry
-			attack_hitbox.set_deferred("monitoring", true)
 			attack_hitbox.set_deferred("monitorable", true)
 			hitbox_active = true
 
@@ -337,8 +336,7 @@ func _enter_state(new_state: BossState) -> void:
 			if player and player.is_on_floor() and global_position.y - player.global_position.y > 30.0:
 				if abs(global_position.x - player.global_position.x) < 30.0:
 					# Push them forward (opposite of our backstep) and slightly up
-					player.velocity.x = dir * 300.0
-					player.velocity.y = -150.0
+					player.velocity += Vector2(dir * 300.0, -150.0)
 
 
 # ── State Processing ──
@@ -391,7 +389,12 @@ func _process_attack(delta: float) -> void:
 
 	# Lunge forward slightly when swinging
 	if attack_timer >= hitbox_start and attack_timer < hitbox_start + frame_dur:
-		velocity.x = dir * 80.0
+		var dist_x = abs(global_position.x - player.global_position.x) if player else 999.0
+		# ถ้าอยู่ห่างเกิน 25 px ค่อยพุ่งตัว (ป้องกันการสไลด์ทะลุ)
+		if dist_x > 25.0:
+			velocity.x = dir * 80.0
+		else:
+			velocity.x = 0.0
 
 
 func _process_combo(delta: float) -> void:
@@ -417,10 +420,14 @@ func _process_combo(delta: float) -> void:
 
 	# Lunge — short step for fast hits, big lunge for heavy finisher
 	if attack_timer >= hitbox_start and attack_timer < hitbox_start + (frame_dur * 2.0):
-		if combo_count == 2:  # finisher: commit hard
-			velocity.x = dir * 100.0
-		else:  # fast hits: small step so boss doesn't overshoot
-			velocity.x = dir * 40.0
+		var dist_x = abs(global_position.x - player.global_position.x) if player else 999.0
+		if dist_x > 25.0:
+			if combo_count == 2:  # finisher: commit hard
+				velocity.x = dir * 100.0
+			else:  # fast hits: small step so boss doesn't overshoot
+				velocity.x = dir * 40.0
+		else:
+			velocity.x = 0.0 # ยืนชิดอยู่แล้ว ฟันอยู่กับที่เลย
 
 
 func _process_delay_attack(delta: float) -> void:
@@ -451,7 +458,12 @@ func _process_delay_attack(delta: float) -> void:
 			var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
 
 			if not hitbox_active and attack_timer >= frame_dur * 0.2:
-				velocity.x = dir * 150.0
+				var dist_x = abs(global_position.x - player.global_position.x) if player else 999.0
+				if dist_x > 25.0:
+					velocity.x = dir * 150.0
+				else:
+					velocity.x = 0.0
+					
 				slash_sfx.pitch_scale = 0.8
 				_turn_on_hitbox(true)
 
@@ -484,6 +496,10 @@ func _process_lightning(delta: float) -> void:
 
 
 func _process_hurt(delta: float) -> void:
+	# [เพิ่มโค้ด 2 บรรทัดนี้!] เบรกแรง Recoil จาก GameManager ไม่ให้บอสกระเด็นเวอร์เกินไป
+	velocity.x = clamp(velocity.x, -150.0, 150.0)
+	if velocity.y < -150.0: velocity.y = -150.0
+	
 	velocity.x = move_toward(velocity.x, 0.0, 400.0 * delta)
 	hurt_timer -= delta
 	if hurt_timer <= 0:
@@ -513,6 +529,7 @@ func _on_animation_finished() -> void:
 			_enter_state(BossState.IDLE)
 
 		BossState.COMBO:
+			# [แก้ตรงนี้!] ลบคำสั่งปิด monitoring ออกเช่นกัน
 			attack_hitbox.set_deferred("monitoring", false)
 			attack_hitbox.set_deferred("monitorable", false)
 			hitbox_active = false
@@ -656,7 +673,8 @@ func _pick_and_enter_attack() -> void:
 	var chosen: BossState = BossState.IDLE
 
 	# 1. Head-riding check FIRST (highest priority) — uses x_dist, not Euclidean dist
-	if y_dist > 30.0 and x_dist < 30.0:
+	# [แก้ตรงนี้!] ใส่ abs(y_dist) แปลว่าไม่ว่าใครเหยียบหัวใคร ให้สลัดทิ้งทันที!
+	if abs(y_dist) > 30.0 and x_dist < 30.0:
 		if current_phase >= 3:
 			_enter_state(BossState.LIGHTNING)  # self-targeted zap to punish the rider
 		else:
@@ -764,11 +782,11 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 		tween.tween_property(anim, "modulate", Color(0.6, 0.7, 1.0, 1.0), 0.08)
 		parry_sfx.play()
 	else:
-		# Player parried the boss — kill the hitbox so it can't re-open
+		# [แก้ตรงนี้!] เอาคำสั่งปิด monitoring ออกไปเลย ใช้แค่ monitorable ปิดดาเมจ
 		attack_hitbox.set_deferred("monitoring", false)
 		attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
-		current_hit_parried = true  # lock this swing's hitbox permanently
+		current_hit_parried = true  
 		
 		if state == BossState.COMBO and combo_count < COMBO_HITS - 1:
 			# Mid-combo parry: boss doesn't flinch! Flurry continues relentlessly
@@ -914,40 +932,17 @@ func _face_player() -> void:
 	_update_direction(new_dir)
 
 
-## Bulletproof Hitbox Activation
-## Forces a manual check for players already standing inside the hitbox
+## เปิด Hitbox ทันทีในเฟรมนี้ (Instant Execution)
+## ใช้ direct assignment แทน set_deferred เพื่อให้ area_entered ยิงทันทีในเฟรมเดียวกัน
+## ปล่อยให้ Signal ของ Player ทำหน้าที่ตรวจจับตามปกติ ไม่ต้องกวาดหาเอง
 func _turn_on_hitbox(play_sound: bool = true) -> void:
-	attack_hitbox.set_deferred("monitoring", true)
-	attack_hitbox.set_deferred("monitorable", true)
+	# สั่งเปิดตรงๆ เลย! ไม่ต้องใช้ set_deferred เพื่อให้ทำงานแบบ Frame-perfect
+	attack_hitbox.monitoring = true
+	attack_hitbox.monitorable = true
 	hitbox_active = true
+
 	if play_sound:
 		slash_sfx.play()
-
-	# Overlap Desync Fix: defer so monitoring is on when the check runs
-	call_deferred("_check_initial_overlaps")
-
-func _check_initial_overlaps() -> void:
-	if not hitbox_active:
-		return
-	var overlapping_areas = attack_hitbox.get_overlapping_areas()
-	var parried_this_frame = false
-
-	# 1. เช็คก่อนว่าดาบเรา ไปซ้อนทับกับดาบผู้เล่น (AttackHitbox) หรือไม่?
-	for area in overlapping_areas:
-		if area.name == "AttackHitbox" and area.get_parent().has_method("_handle_parry"):
-			area.get_parent()._handle_parry(attack_hitbox)
-			parried_this_frame = true
-			break
-
-	# 2. ถ้าไม่ได้โดนปัดป้อง ค่อยเช็คว่าฟันโดนตัว (Hurtbox) ไหม
-	if not parried_this_frame:
-		for area in overlapping_areas:
-			if area.name == "Hurtbox" and area.get_parent().has_method("take_damage"):
-				var p = area.get_parent()
-				if p.has_method("is_auto_parrying") and p.is_auto_parrying():
-					p._handle_parry(attack_hitbox)
-				else:
-					p.take_damage(1, global_position)
 
 func _update_direction(new_dir: int) -> void:
 	if new_dir == 0:

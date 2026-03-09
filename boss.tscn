@@ -19,7 +19,7 @@
 size = Vector2(14, 44)
 
 [sub_resource type="RectangleShape2D" id="SubResource_atkbox"]
-size = Vector2(49.5, 30)
+size = Vector2(58, 30)
 
 [sub_resource type="RectangleShape2D" id="SubResource_hurtbox"]
 size = Vector2(20, 44)
@@ -546,7 +546,7 @@ monitoring = false
 monitorable = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackPivot/AttackHitbox" unique_id=578274034]
-position = Vector2(-2.75, 0)
+position = Vector2(-7, 0)
 shape = SubResource("SubResource_atkbox")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=100774917 groups=["enemy_hurtbox"]]
