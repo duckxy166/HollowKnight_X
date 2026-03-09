@@ -51,12 +51,12 @@ func physics_process_state(delta: float) -> void:
 		state_machine.transition_to("ground")
 		return
 
-	# ── Dash ──
-	if Input.is_action_just_pressed("dash") and character.can_dash:
+	# ── Dash (costs stamina) ──
+	if Input.is_action_just_pressed("dash") and character.can_dash and character.stamina >= character.STAMINA_DASH_COST:
 		state_machine.transition_to("dash")
 		return
 
-	# ── Attack (S+X = down attack, X = side attack) ──
-	if Input.is_action_just_pressed("attack") and character.attack_cooldown_timer <= 0:
+	# ── Attack (costs stamina) ──
+	if Input.is_action_just_pressed("attack") and character.attack_cooldown_timer <= 0 and character.stamina >= character.STAMINA_ATTACK_COST:
 		state_machine.transition_to("attack")
 		return

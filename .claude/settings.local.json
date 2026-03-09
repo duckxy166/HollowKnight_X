@@ -12,7 +12,10 @@
       "Bash(gh api repos/RobinEversunshine/Godot_Pixelized_Hollow_Knight/git/trees/main?recursive=1 --jq '.tree[].path')",
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(xxd \"C:/Users/saharat/Documents/hollow-knight-จีนแดง/player/player.gd\")"
+      "Bash(xxd \"C:/Users/saharat/Documents/hollow-knight-จีนแดง/player/player.gd\")",
+      "Bash(python3 -c \":*)",
+      "Bash(xxd -l 32 \"asset/VFX/lightning/lightning/lightning_v2_1.png\")",
+      "Bash(xargs grep -l \"font\\\\|theme\\\\|texture_filter\\\\|CanvasLayer\\\\|Label\\\\|ProgressBar\")"
     ]
   }
 }

@@ -3,7 +3,10 @@ extends Node
 ## Global game manager - handles hitstop, parry effects, and game state.
 
 @warning_ignore("unused_signal")  # emitted from player.gd, not here
-signal parry_occurred(player: CharacterBody2D, enemy_area: Area2D)
+signal parry_occurred(player_node: Node2D, enemy_area: Area2D)
+
+## Emitted when the player's death animation finishes and the restart UI should appear
+signal player_died
 
 
 func _ready() -> void:

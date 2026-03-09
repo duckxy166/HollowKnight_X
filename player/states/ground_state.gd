@@ -47,12 +47,17 @@ func physics_process_state(delta: float) -> void:
 		state_machine.transition_to("air")
 		return
 
-	# ── Dash ──
-	if Input.is_action_just_pressed("dash") and character.can_dash:
+	# ── Dash (costs stamina) ──
+	if Input.is_action_just_pressed("dash") and character.can_dash and character.stamina >= character.STAMINA_DASH_COST:
 		state_machine.transition_to("dash")
 		return
 
-	# ── Attack ──
-	if Input.is_action_just_pressed("attack") and character.attack_cooldown_timer <= 0:
+	# ── Attack (costs stamina) ──
+	if Input.is_action_just_pressed("attack") and character.attack_cooldown_timer <= 0 and character.stamina >= character.STAMINA_ATTACK_COST:
 		state_machine.transition_to("attack")
 		return
+
+	# ── Heal (E key, uses a potion) ──
+	if Input.is_action_just_pressed("heal") and character.potions > 0 and character.health < 5:
+		character.potions -= 1
+		character.health = min(character.health + character.HEAL_AMOUNT, 5)

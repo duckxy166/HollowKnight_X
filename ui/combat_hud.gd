@@ -6,6 +6,10 @@ extends CanvasLayer
 @onready var boss_bar: ProgressBar = $BossHealthBar
 @onready var boss_name_label: Label = $BossNameLabel
 @onready var player_bar: ProgressBar = $PlayerHealthBar
+@onready var stamina_bar: ProgressBar = $PlayerStaminaBar
+@onready var potion_label: Label = $PotionLabel
+@onready var game_over_panel: ColorRect = $GameOverPanel
+@onready var restart_button: Button = $GameOverPanel/RestartButton
 
 var player: CharacterBody2D = null
 var boss: CharacterBody2D = null
@@ -21,6 +25,8 @@ func _ready() -> void:
 	# Boss bar: bright vivid red so it pops against dark backgrounds
 	_style_bar(boss_bar, Color(1.0, 0.2, 0.15), Color(0.2, 0.1, 0.1))
 	_style_bar(player_bar, Color(0.95, 0.82, 0.35), Color(0.15, 0.12, 0.12))
+	# Stamina: bright green
+	_style_bar(stamina_bar, Color(0.2, 0.8, 0.2), Color(0.1, 0.2, 0.1))
 
 	if boss:
 		boss_bar.max_value = boss.MAX_HP
@@ -28,6 +34,11 @@ func _ready() -> void:
 	if player:
 		player_bar.max_value = player.health
 		player_bar.value = player.health
+
+	# Death UI setup
+	game_over_panel.hide()
+	GameManager.player_died.connect(_on_player_died)
+	restart_button.pressed.connect(_on_restart_pressed)
 
 
 func _process(_delta: float) -> void:
@@ -44,6 +55,8 @@ func _process(_delta: float) -> void:
 	# Update player bar
 	if is_instance_valid(player):
 		player_bar.value = player.health
+		stamina_bar.value = player.stamina
+		potion_label.text = "Potions: %d/%d" % [player.potions, player.MAX_POTIONS]
 
 
 ## Apply a flat dark style to a ProgressBar — fill_color for the front, bg_color for the back.
@@ -69,3 +82,12 @@ func _style_bar(bar: ProgressBar, fill_color: Color, bg_color: Color) -> void:
 	bg.border_width_left = 1
 	bg.border_width_right = 1
 	bar.add_theme_stylebox_override("background", bg)
+
+func _on_player_died() -> void:
+	game_over_panel.show()
+	# Optional: pause the game behind the UI
+	# get_tree().paused = true
+
+func _on_restart_pressed() -> void:
+	# get_tree().paused = false
+	get_tree().reload_current_scene()

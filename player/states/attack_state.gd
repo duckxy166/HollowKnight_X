@@ -19,6 +19,8 @@ const DOWN_SLASH_POS := Vector2(0, 20)
 func enter() -> void:
 	attack_timer = character.ATTACK_DURATION
 	character.attack_cooldown_timer = character.ATTACK_COOLDOWN
+	character.stamina -= character.STAMINA_ATTACK_COST
+	character.stamina_delay_timer = character.STAMINA_REGEN_DELAY
 
 	# Decide attack type
 	is_down_attack = (

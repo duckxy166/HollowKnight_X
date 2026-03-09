@@ -9,11 +9,11 @@
 [ext_resource type="Script" uid="uid://bdqyv0qj2vxnb" path="res://player/states/dash_state.gd" id="7_dsh"]
 [ext_resource type="Script" uid="uid://ce1ewggbg343k" path="res://player/states/attack_state.gd" id="8_atk"]
 [ext_resource type="Script" uid="uid://due1c30yjkl78" path="res://player/states/hurt_state.gd" id="9_hrt"]
+[ext_resource type="Script" path="res://player/states/death_state.gd" id="10_dth"]
 [ext_resource type="AudioStream" uid="uid://qv0s4v652y44" path="res://asset/effect/swipe.wav" id="10_swipe"]
 [ext_resource type="AudioStream" uid="uid://c46j4gkkrill3" path="res://asset/effect/Pyke_Original_QRange_0.ogg" id="11_dash"]
 [ext_resource type="AudioStream" uid="uid://dgi214ypyq1b2" path="res://asset/effect/foley_footstep_concrete_4.wav" id="12_foot"]
 [ext_resource type="AudioStream" uid="uid://c0bg3dcukju1q" path="res://asset/effect/hero_dash.wav" id="13_hdash"]
-[ext_resource type="AudioStream" uid="uid://by5yuuyr3hsrs" path="res://asset/effect/Stab 4-1.wav" id="14_slap"]
 [ext_resource type="AudioStream" uid="uid://dvfiekpu88bcy" path="res://asset/effect/hero_parry.wav" id="15_parry"]
 [ext_resource type="AudioStream" uid="uid://blcvsydicatyc" path="res://asset/effect/hero_damage.wav" id="16_damage"]
 
@@ -109,6 +109,10 @@ region = Rect2(544, 0, 32, 32)
 [sub_resource type="AtlasTexture" id="AtlasTexture_5ejfk"]
 atlas = ExtResource("2_pyke")
 region = Rect2(576, 0, 32, 32)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_jd2rm"]
+atlas = ExtResource("2_pyke")
+region = Rect2(512, 0, 32, 32)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_uw77l"]
 animations = [{
@@ -214,6 +218,14 @@ animations = [{
 "loop": true,
 "name": &"top_attack",
 "speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_jd2rm")
+}],
+"loop": true,
+"name": &"was_parry",
+"speed": 5.0
 }]
 
 [node name="Player" type="CharacterBody2D" unique_id=1406818119]
@@ -239,7 +251,6 @@ monitoring = false
 monitorable = false
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="AttackPivot/AttackHitbox" unique_id=546257857]
-position = Vector2(0, 0)
 shape = SubResource("SubResource_atkbox")
 
 [node name="Hurtbox" type="Area2D" parent="." unique_id=1552046068]
@@ -268,6 +279,9 @@ script = ExtResource("8_atk")
 [node name="Hurt" type="Node" parent="StateMachine" unique_id=1233286272]
 script = ExtResource("9_hrt")
 
+[node name="Death" type="Node" parent="StateMachine" unique_id=1234567890]
+script = ExtResource("10_dth")
+
 [node name="Camera2D" type="Camera2D" parent="." unique_id=9912889]
 zoom = Vector2(2, 2)
 process_callback = 0
@@ -276,7 +290,7 @@ position_smoothing_speed = 8.0
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=715941305]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"idle"
+animation = &"was_parry"
 
 [node name="SlashSFX" type="AudioStreamPlayer" parent="." unique_id=813787500]
 stream = ExtResource("10_swipe")
@@ -292,7 +306,7 @@ volume_db = -12.0
 stream = ExtResource("13_hdash")
 
 [node name="HitSFX" type="AudioStreamPlayer" parent="." unique_id=495162707]
-stream = ExtResource("14_slap")
+stream = ExtResource("16_damage")
 
 [node name="HeroParrySFX" type="AudioStreamPlayer" parent="." unique_id=987654321]
 stream = ExtResource("15_parry")

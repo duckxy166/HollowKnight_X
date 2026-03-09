@@ -5,6 +5,8 @@ var dash_timer: float = 0.0
 
 func enter() -> void:
 	dash_timer = character.DASH_DURATION
+	character.stamina -= character.STAMINA_DASH_COST
+	character.stamina_delay_timer = character.STAMINA_REGEN_DELAY
 	character.velocity = Vector2(character.dir * character.DASH_SPEED, 0.0)
 	character.is_invincible = true
 	character.can_dash = false

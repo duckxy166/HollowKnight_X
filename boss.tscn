@@ -11,6 +11,7 @@
 [ext_resource type="Texture2D" uid="uid://df06i8l6mvwqw" path="res://asset/enemy/boss/Run.png" id="16_akhi5"]
 [ext_resource type="Texture2D" uid="uid://ba2xt2cw323j4" path="res://asset/enemy/boss/Take hit.png" id="17_vwlhh"]
 [ext_resource type="AudioStream" uid="uid://72klle34j8dc" path="res://asset/VFX/Combat and Gore/swipe.wav" id="18_telegraph"]
+[ext_resource type="AudioStream" uid="uid://fya354mqwh1w" path="res://asset/effect/hero_damage_less_harsh.wav" id="19_hurt"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_body"]
 size = Vector2(14, 44)
@@ -199,6 +200,14 @@ region = Rect2(162, 0, 162, 162)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_0hk1r"]
 atlas = ExtResource("15_cm1kr")
+region = Rect2(324, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_etj48"]
+atlas = ExtResource("11_7ke2s")
+region = Rect2(162, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_h3lj5"]
+atlas = ExtResource("11_7ke2s")
 region = Rect2(324, 0, 162, 162)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ad74g"]
@@ -419,6 +428,17 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_etj48")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_h3lj5")
+}],
+"loop": true,
+"name": &"lighningCharge",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_ad74g")
 }, {
 "duration": 1.0,
@@ -491,8 +511,12 @@ shape = SubResource("SubResource_hurtbox")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=662270678]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"idle"
+animation = &"lighningCharge"
+frame_progress = 0.6350097
 
-[node name="TelegraphSFX" type="AudioStreamPlayer" parent="."]
+[node name="TelegraphSFX" type="AudioStreamPlayer" parent="." unique_id=937178032]
 stream = ExtResource("18_telegraph")
 volume_db = -6.0
+
+[node name="HurtSFX" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("19_hurt")

@@ -3,7 +3,7 @@ extends CharacterBody2D
 ## Boss AI with 4-phase system. Phases escalate attacks and speed as HP drops.
 
 # ── State Machine ──
-enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, HURT, DEATH }
+enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, LIGHTNING, HURT, DEATH }
 
 # ── Constants ──
 const MAX_HP: int = 40
@@ -33,6 +33,19 @@ const COMBO_GAP: float = 0.1  # seconds between combo hits
 # Delay attack extra pause
 const DELAY_PAUSE: float = 0.5
 
+# Lightning attack
+const LIGHTNING_CHARGE_TIME: float = 1.0
+const LIGHTNING_STRIKES_BASE: int = 2  # strikes in phase 3
+const LIGHTNING_STRIKES_P4: int = 4    # strikes in phase 4
+
+# Damage cooldown so the same swing doesn't double-hit
+const DAMAGE_COOLDOWN: float = 0.05
+
+# Parry escalation — boss gets better at blocking when spammed
+const PARRY_CHANCE_PER_HIT: float = 0.15
+const PARRY_CHANCE_MAX: float = 0.6
+const PARRY_DECAY_RATE: float = 0.1  # how fast parry_chance drops per second
+
 # ── Runtime State ──
 var hp: int = MAX_HP
 var current_phase: int = 1
@@ -47,9 +60,14 @@ var delay_timer: float = 0.0
 var hitbox_active: bool = false
 var is_dead: bool = false
 var is_invincible: bool = false
+var lightning_timer: float = 0.0
+var lightning_spawned: bool = false
+var damage_cooldown_timer: float = 0.0
+var parry_chance: float = 0.0  # increases when hit repeatedly
 
 var player: CharacterBody2D = null
 var projectile_scene: PackedScene = preload("res://boss_projectile.tscn")
+var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 
 # ── Node References ──
 @onready var anim: AnimatedSprite2D = $AnimatedSprite2D
@@ -58,6 +76,7 @@ var projectile_scene: PackedScene = preload("res://boss_projectile.tscn")
 @onready var hurtbox: Area2D = $Hurtbox
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
 @onready var telegraph_sfx: AudioStreamPlayer = $TelegraphSFX
+@onready var hurt_sfx: AudioStreamPlayer = $HurtSFX
 
 
 func _ready() -> void:
@@ -93,6 +112,14 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
+	# Tick down damage cooldown
+	if damage_cooldown_timer > 0:
+		damage_cooldown_timer -= delta
+
+	# Parry chance decays over time so boss won't block forever
+	if parry_chance > 0:
+		parry_chance = max(parry_chance - PARRY_DECAY_RATE * delta, 0.0)
+
 	# Gravity
 	if not is_on_floor():
 		velocity.y = min(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
@@ -110,6 +137,8 @@ func _physics_process(delta: float) -> void:
 			_process_delay_attack(delta)
 		BossState.PROJECTILE:
 			_process_projectile(delta)
+		BossState.LIGHTNING:
+			_process_lightning(delta)
 		BossState.HURT:
 			_process_hurt(delta)
 		BossState.DEATH:
@@ -185,6 +214,18 @@ func _enter_state(new_state: BossState) -> void:
 			attack_timer = 0.0
 			hitbox_active = false
 
+		BossState.LIGHTNING:
+			_face_player()
+			_telegraph_attack()
+			velocity.x = 0.0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("lighningCharge")
+			lightning_timer = LIGHTNING_CHARGE_TIME
+			lightning_spawned = false
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+
 		BossState.HURT:
 			velocity.x = 0.0
 			hurt_timer = 0.3
@@ -236,11 +277,10 @@ func _process_attack(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# Hitbox timing: active from frame 3 to frame 5 (out of 7 frames)
-	# At 5fps * speed_mult, each frame = 0.2s / speed_mult
+	# Hitbox comes out fast — frame 1.5 instead of 3
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
-	var hitbox_start: float = frame_dur * 3.0
-	var hitbox_end: float = frame_dur * 5.5
+	var hitbox_start: float = frame_dur * 1.5
+	var hitbox_end: float = frame_dur * 4.0
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
@@ -261,10 +301,10 @@ func _process_combo(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# attack3 has 8 frames at 5fps * speed * 1.3
+	# attack3 has 8 frames — hitbox comes out quick
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.3)
-	var hitbox_start: float = frame_dur * 3.0
-	var hitbox_end: float = frame_dur * 5.0
+	var hitbox_start: float = frame_dur * 1.5
+	var hitbox_end: float = frame_dur * 3.5
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
@@ -321,6 +361,18 @@ func _process_delay_attack(delta: float) -> void:
 func _process_projectile(_delta: float) -> void:
 	# Projectile spawns on animation_finished
 	pass
+
+
+func _process_lightning(delta: float) -> void:
+	velocity.x = 0.0
+	lightning_timer -= delta
+	if not lightning_spawned and lightning_timer <= 0:
+		lightning_spawned = true
+		_spawn_lightning_strikes()
+		# Wait for strikes to land before returning to idle
+		lightning_timer = 0.8
+	elif lightning_spawned and lightning_timer <= 0:
+		_enter_state(BossState.IDLE)
 
 
 func _process_hurt(delta: float) -> void:
@@ -390,10 +442,11 @@ func _pick_and_enter_attack() -> void:
 	if current_phase >= 2:
 		attacks.append(BossState.COMBO)
 
-	# Phase 3+: add delay attack and projectile
+	# Phase 3+: add delay attack, projectile, and lightning
 	if current_phase >= 3:
 		attacks.append(BossState.DELAY_ATTACK)
 		attacks.append(BossState.PROJECTILE)
+		attacks.append(BossState.LIGHTNING)
 
 	var chosen: BossState = attacks[randi() % attacks.size()]
 	_enter_state(chosen)
@@ -402,19 +455,27 @@ func _pick_and_enter_attack() -> void:
 # ── Combat ──
 
 func take_damage(amount: int, _from_position: Vector2) -> void:
-	if is_dead or is_invincible:
+	if is_dead or damage_cooldown_timer > 0:
+		return
+
+	# Check if boss auto-parries this hit (escalating chance)
+	if parry_chance > 0 and randf() < parry_chance:
+		_auto_parry()
 		return
 
 	hp -= amount
 	hp = max(hp, 0)
+	hurt_sfx.play()
+	damage_cooldown_timer = DAMAGE_COOLDOWN
+
+	# Getting hit a lot makes boss more likely to parry next time
+	parry_chance = min(parry_chance + PARRY_CHANCE_PER_HIT, PARRY_CHANCE_MAX)
 
 	_update_phase()
-	_flash_hit(0.4)
+	_brief_flash()  # quick visual flash, no stagger
 
 	if hp <= 0:
 		_enter_state(BossState.DEATH)
-	else:
-		_enter_state(BossState.HURT)
 
 
 func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> void:
@@ -425,26 +486,33 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 		hitbox_active = false
 		# Brief stagger on parry with flash
 		if not is_dead and state != BossState.DEATH:
-			_flash_hit(0.3)
+			_brief_flash()
 			hurt_timer = 0.2
 			anim.speed_scale = 1.0
 			anim.play("takehit")
 			state = BossState.HURT
 
 
-## Flash the boss sprite (flicker like the player when hit).
-func _flash_hit(duration: float) -> void:
-	is_invincible = true
+## Quick white flash when hit — boss keeps doing whatever it was doing.
+func _brief_flash() -> void:
 	var tween = create_tween()
-	# Brief white flash then flickering
 	tween.tween_property(anim, "modulate", Color(3.0, 3.0, 3.0, 1.0), 0.03)
-	tween.tween_property(anim, "modulate", Color.WHITE, 0.03)
-	tween.set_loops(int(duration / 0.06))
-	tween.tween_property(anim, "modulate:a", 0.3, 0.03)
-	tween.tween_property(anim, "modulate:a", 1.0, 0.03)
-	tween.finished.connect(func():
-		is_invincible = false
-		anim.modulate = Color.WHITE
+	tween.tween_property(anim, "modulate", Color.WHITE, 0.06)
+
+
+## Boss auto-parries: briefly flash attack hitbox so the player's swing hits it.
+func _auto_parry() -> void:
+	attack_hitbox.monitoring = true
+	attack_hitbox.monitorable = true
+	# Brief flash to telegraph the parry
+	var tween = create_tween()
+	anim.modulate = Color(1.0, 0.5, 0.5, 1.0)
+	tween.tween_property(anim, "modulate", Color.WHITE, 0.15)
+	# Deactivate hitbox after a short window
+	get_tree().create_timer(0.1).timeout.connect(func():
+		if not is_dead:
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
 	)
 
 
@@ -473,7 +541,33 @@ func _spawn_projectile() -> void:
 	proj.global_position = global_position + Vector2(dir * 20, -5)
 	var aim_dir := Vector2(dir, 0).normalized()
 	proj.direction = aim_dir
+	proj.boss_phase = current_phase
 	get_parent().add_child(proj)
+
+
+func _spawn_lightning_strikes() -> void:
+	if player == null:
+		return
+
+	var strike_count: int = LIGHTNING_STRIKES_P4 if current_phase >= 4 else LIGHTNING_STRIKES_BASE
+	# Get arena bounds from walls (roughly x=0 to x=1280)
+	var arena_min_x: float = 20.0
+	var arena_max_x: float = 1260.0
+	# Floor y position (lightning spawns on the floor)
+	var floor_y: float = global_position.y
+
+	# One strike always targets player position
+	var positions: Array[float] = [player.global_position.x]
+
+	# Remaining strikes at spread positions around the arena
+	for i in range(strike_count - 1):
+		var rand_x := randf_range(arena_min_x, arena_max_x)
+		positions.append(rand_x)
+
+	for x_pos in positions:
+		var strike = lightning_scene.instantiate()
+		strike.global_position = Vector2(x_pos, floor_y)
+		get_parent().add_child(strike)
 
 
 # ── Helpers ──

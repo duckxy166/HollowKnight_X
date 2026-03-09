@@ -34,6 +34,21 @@ var jump_buffer_timer: float = 0.0
 var attack_cooldown_timer: float = 0.0
 var health: int = 5
 
+# ── Stamina ──
+const MAX_STAMINA: float = 10.0
+const STAMINA_REGEN: float = 3.0   # per second
+const STAMINA_ATTACK_COST: float = 1.0
+const STAMINA_DASH_COST: float = 2.0
+const STAMINA_REGEN_DELAY: float = 1.0 # Wait 1 sec before recharging starts
+var stamina: float = MAX_STAMINA
+var stamina_delay_timer: float = 0.0
+
+# ── Healing potions ──
+const HEAL_AMOUNT: int = 2
+const MAX_POTIONS: int = 3
+var potions: int = MAX_POTIONS
+var is_healing: bool = false
+
 # ── Preloads ──
 var slash_vfx_scene: PackedScene = preload("res://vfx/slash_vfx.tscn")
 var parry_vfx_scene: PackedScene = preload("res://vfx/parry_vfx.tscn")
@@ -83,6 +98,12 @@ func _physics_process(delta: float) -> void:
 	# Attack cooldown
 	if attack_cooldown_timer > 0:
 		attack_cooldown_timer -= delta
+
+	# Regen stamina over time, but only after delay
+	if stamina_delay_timer > 0:
+		stamina_delay_timer -= delta
+	elif stamina < MAX_STAMINA:
+		stamina = min(stamina + STAMINA_REGEN * delta, MAX_STAMINA)
 
 	move_and_slide()
 
@@ -160,7 +181,7 @@ func set_invincible(duration: float) -> void:
 # ── Damage ──
 
 func take_damage(amount: int, from_position: Vector2) -> void:
-	if is_invincible:
+	if is_invincible or state_machine.current_state.name.to_lower() == "death":
 		return
 	health -= amount
 	damage_sfx.play()
@@ -168,7 +189,11 @@ func take_damage(amount: int, from_position: Vector2) -> void:
 	if knockback_dir == 0:
 		knockback_dir = -dir
 	velocity = Vector2(knockback_dir * 200.0, -150.0)
-	state_machine.transition_to("hurt")
+	
+	if health <= 0:
+		state_machine.transition_to("death")
+	else:
+		state_machine.transition_to("hurt")
 
 
 # ── Hitbox callbacks ──
@@ -200,9 +225,8 @@ func _handle_parry(enemy_area: Area2D) -> void:
 	GameManager.apply_hitstop(0.08)
 	GameManager.apply_recoil(self, enemy_area.global_position, RECOIL_STRENGTH)
 
-	# Big juicy parry feedback
+	# Big juicy parry feedback (no screen flash, that was too harsh)
 	GameManager.apply_screen_shake(6.0, 0.15)
-	GameManager.apply_screen_flash(0.08)
 
 	# Spawn sparks and dust at the contact point
 	var contact_pos := (global_position + enemy_area.global_position) / 2.0
@@ -214,9 +238,17 @@ func _handle_parry(enemy_area: Area2D) -> void:
 	get_parent().add_child(dust)
 
 	var enemy = enemy_area.get_parent()
+	var was_boss_parrying_player: bool = false
 	if enemy is CharacterBody2D:
 		GameManager.apply_recoil(enemy, global_position, RECOIL_STRENGTH)
+		# Boss doesn't stagger. Player staggers if they hit the boss's parry stance.
+		if enemy.is_in_group("boss") and enemy.state != 8: # 8 is DEATH
+			was_boss_parrying_player = true
+			# We stagger the player
+			state_machine.transition_to("hurt")
 	elif enemy.has_method("on_parried"):
 		enemy.on_parried(global_position)
-	set_invincible(PARRY_IFRAMES)
+	
+	if not was_boss_parrying_player:
+		set_invincible(PARRY_IFRAMES)
 	GameManager.parry_occurred.emit(self, enemy_area)
