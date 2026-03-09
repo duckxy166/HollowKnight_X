@@ -223,7 +223,6 @@ func _on_hurtbox_area_entered(area: Area2D) -> void:
 func _handle_parry(enemy_area: Area2D) -> void:
 	hero_parry_sfx.play()
 	GameManager.apply_hitstop(0.08)
-	GameManager.apply_recoil(self, enemy_area.global_position, RECOIL_STRENGTH)
 
 	# Big juicy parry feedback (no screen flash, that was too harsh)
 	GameManager.apply_screen_shake(6.0, 0.15)
@@ -242,7 +241,7 @@ func _handle_parry(enemy_area: Area2D) -> void:
 	if enemy is CharacterBody2D:
 		GameManager.apply_recoil(enemy, global_position, RECOIL_STRENGTH)
 		# Boss doesn't stagger. Player staggers if they hit the boss's parry stance.
-		if enemy.is_in_group("boss") and enemy.state != 8: # 8 is DEATH
+		if enemy.is_in_group("boss") and enemy.state == enemy.BossState.PARRY_STANCE:
 			was_boss_parrying_player = true
 			# We stagger the player
 			state_machine.transition_to("hurt")

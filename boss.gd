@@ -20,7 +20,7 @@ const PHASE_4_THRESHOLD: int = 10  # 25%
 # Idle cooldowns per phase (shorter = more aggressive)
 const IDLE_COOLDOWNS: Array[float] = [0.6, 0.4, 0.2, 0.0]
 # Animation speed multipliers per phase
-const SPEED_MULTIPLIERS: Array[float] = [1.0, 1.2, 1.2, 1.4]
+const SPEED_MULTIPLIERS: Array[float] = [1.0, 1.15, 1.3, 1.6]
 
 # Attack hitbox offset from the boss (should match scene pivot)
 const ATTACK_HITBOX_POS := Vector2(25, -2)
@@ -34,8 +34,8 @@ const DELAY_PAUSE: float = 0.5
 
 # Lightning attack
 const LIGHTNING_CHARGE_TIME: float = 1.0
-const LIGHTNING_STRIKES_BASE: int = 2  # strikes in phase 3
-const LIGHTNING_STRIKES_P4: int = 4    # strikes in phase 4
+const LIGHTNING_STRIKES_BASE: int = 3  # strikes in phase 3
+const LIGHTNING_STRIKES_P4: int = 8    # strikes in phase 4
 
 # Parry stance — boss blocks player's attack then counters
 const PARRY_CHANCE_PER_HIT: float = 0.15   # +15% per hit taken
@@ -382,10 +382,7 @@ func _process_attack(delta: float) -> void:
 		hitbox_end = frame_dur * 3.0
 
 	if not hitbox_active and attack_timer >= hitbox_start:
-		attack_hitbox.set_deferred("monitoring", true)
-		attack_hitbox.set_deferred("monitorable", true)
-		hitbox_active = true
-		slash_sfx.play()
+		_turn_on_hitbox(true)
 
 	if hitbox_active and attack_timer >= hitbox_end:
 		attack_hitbox.set_deferred("monitoring", false)
@@ -410,11 +407,8 @@ func _process_combo(delta: float) -> void:
 
 	# Open hitbox only if this swing hasn't been parried already
 	if not hitbox_active and not current_hit_parried and attack_timer >= hitbox_start:
-		attack_hitbox.set_deferred("monitoring", true)
-		attack_hitbox.set_deferred("monitorable", true)
-		hitbox_active = true
 		slash_sfx.pitch_scale = randf_range(0.9, 1.1)
-		slash_sfx.play()
+		_turn_on_hitbox(true)
 
 	# Note: We NO LONGER close the hitbox via `attack_timer >= hitbox_end`.
 	# During ultra-fast combos (3.0x speed), delta skips frames and causes the hitbox
@@ -457,12 +451,9 @@ func _process_delay_attack(delta: float) -> void:
 			var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
 
 			if not hitbox_active and attack_timer >= frame_dur * 0.2:
-				attack_hitbox.set_deferred("monitoring", true)
-				attack_hitbox.set_deferred("monitorable", true)
-				hitbox_active = true
 				velocity.x = dir * 150.0
 				slash_sfx.pitch_scale = 0.8
-				slash_sfx.play()
+				_turn_on_hitbox(true)
 
 			if hitbox_active and attack_timer >= frame_dur * 2.0:
 				attack_hitbox.set_deferred("monitoring", false)
@@ -535,10 +526,10 @@ func _on_animation_finished() -> void:
 				# === Rhythm pattern: fast-fast-SLOW (ปัง-ปัง...ปึ้ง!) ===
 				if combo_count == 1:
 					# Hit 2: blazing fast — catch players who panic-dodge
-					anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 2.5, 3.0)
+					anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 2.5, 4.0)
 				elif combo_count == 2:
 					# Hit 3 (finisher): delayed heavy swing — bait early parry
-					anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.2, 1.5)
+					anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.2, 1.8)
 				
 				# Force frame 0 for clean rhythm timing
 				anim.play("attack3")
@@ -581,9 +572,7 @@ func _process_parry_stance(delta: float) -> void:
 
 	# Hitbox active on frame 1
 	if not hitbox_active and attack_timer >= frame_dur * 1.0:
-		attack_hitbox.set_deferred("monitoring", true)
-		attack_hitbox.set_deferred("monitorable", true)
-		hitbox_active = true
+		_turn_on_hitbox(false)
 
 	if parry_did_block:
 		# Boss blocked! Brief pause then counterattack
@@ -617,11 +606,8 @@ func _process_air_counter(delta: float) -> void:
 
 	# Hitbox active from the start — wide upward sweep
 	if not hitbox_active and attack_timer >= 0.0:
-		attack_hitbox.set_deferred("monitoring", true)
-		attack_hitbox.set_deferred("monitorable", true)
-		hitbox_active = true
 		slash_sfx.pitch_scale = 1.2
-		slash_sfx.play()
+		_turn_on_hitbox(true)
 
 	# Shut hitbox after the swing arc
 	if hitbox_active and attack_timer >= frame_dur * 5.0:
@@ -852,13 +838,26 @@ func _update_phase() -> void:
 func _spawn_projectile() -> void:
 	if player == null:
 		return
-	var proj = projectile_scene.instantiate()
-	proj.global_position = global_position + Vector2(dir * 20, -5)
-	# Aim at the player's center mass — explicit Vector2 type to avoid parse error
-	var aim_dir: Vector2 = (player.global_position - proj.global_position).normalized()
-	proj.direction = aim_dir
-	proj.boss_phase = current_phase
-	get_parent().add_child(proj)
+	
+	var spawn_pos = global_position + Vector2(dir * 20, -5)
+	var aim_dir: Vector2 = (player.global_position - spawn_pos).normalized()
+	
+	# Phase 4 shoots a 3-way spread!
+	var count: int = 3 if current_phase >= 4 else 1
+	var spread: float = 0.25 # radians
+	
+	for i in range(count):
+		var proj = projectile_scene.instantiate()
+		proj.global_position = spawn_pos
+		
+		var final_dir = aim_dir
+		if count > 1:
+			var angle_offset = (i - 1) * spread
+			final_dir = aim_dir.rotated(angle_offset)
+			
+		proj.direction = final_dir
+		proj.boss_phase = current_phase
+		get_parent().add_child(proj)
 
 
 func _spawn_lightning_strikes() -> void:
@@ -917,6 +916,33 @@ func _face_player() -> void:
 	var new_dir: int = 1 if player.global_position.x > global_position.x else -1
 	_update_direction(new_dir)
 
+
+## Bulletproof Hitbox Activation
+## Forces a manual check for players already standing inside the hitbox
+func _turn_on_hitbox(play_sound: bool = true) -> void:
+	attack_hitbox.set_deferred("monitoring", true)
+	attack_hitbox.set_deferred("monitorable", true)
+	hitbox_active = true
+	if play_sound:
+		slash_sfx.play()
+
+	# Overlap Desync Fix: กวาดหาเป้าหมายตอนเปิดดาบ
+	var overlapping_areas = attack_hitbox.get_overlapping_areas()
+	var parried_this_frame = false
+	
+	# 1. เช็คก่อนว่าดาบเรา ไปซ้อนทับกับดาบผู้เล่น (AttackHitbox) หรือไม่?
+	for area in overlapping_areas:
+		if area.name == "AttackHitbox" and area.get_parent().has_method("_handle_parry"):
+			# ชนดาบผู้เล่นพอดี! บังคับให้เกิดการปัดป้อง (Parry) ทันที
+			area.get_parent()._handle_parry(attack_hitbox)
+			parried_this_frame = true
+			break # หลุดออกจากลูป เพราะดาบโดนปัดไปแล้ว
+			
+	# 2. ถ้าไม่ได้โดนปัดป้อง ค่อยเช็คว่าฟันโดนตัว (Hurtbox) ไหม
+	if not parried_this_frame:
+		for area in overlapping_areas:
+			if area.name == "Hurtbox" and area.get_parent().has_method("take_damage"):
+				area.get_parent().take_damage(1, global_position)
 
 func _update_direction(new_dir: int) -> void:
 	if new_dir == 0:

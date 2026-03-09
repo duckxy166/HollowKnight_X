@@ -228,25 +228,9 @@ region = Rect2(162, 0, 162, 162)
 atlas = ExtResource("11_7ke2s")
 region = Rect2(324, 0, 162, 162)
 
-[sub_resource type="AtlasTexture" id="AtlasTexture_8arul"]
-atlas = ExtResource("9_r8fku")
-region = Rect2(324, 0, 162, 162)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_3d2wm"]
-atlas = ExtResource("9_r8fku")
-region = Rect2(486, 0, 162, 162)
-
 [sub_resource type="AtlasTexture" id="AtlasTexture_rrd6h"]
 atlas = ExtResource("9_r8fku")
 region = Rect2(648, 0, 162, 162)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_7g8a4"]
-atlas = ExtResource("9_r8fku")
-region = Rect2(810, 0, 162, 162)
-
-[sub_resource type="AtlasTexture" id="AtlasTexture_r8fku"]
-atlas = ExtResource("9_r8fku")
-region = Rect2(972, 0, 162, 162)
 
 [sub_resource type="AtlasTexture" id="AtlasTexture_ad74g"]
 atlas = ExtResource("16_akhi5")
@@ -494,19 +478,7 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
-"texture": SubResource("AtlasTexture_8arul")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_3d2wm")
-}, {
-"duration": 1.0,
 "texture": SubResource("AtlasTexture_rrd6h")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_7g8a4")
-}, {
-"duration": 1.0,
-"texture": SubResource("AtlasTexture_r8fku")
 }],
 "loop": true,
 "name": &"parry",
@@ -587,9 +559,7 @@ shape = SubResource("SubResource_hurtbox")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=662270678]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"attack3"
-frame = 7
-frame_progress = 1.0
+animation = &"parry"
 
 [node name="TelegraphSFX" type="AudioStreamPlayer" parent="." unique_id=937178032]
 stream = ExtResource("18_telegraph")
