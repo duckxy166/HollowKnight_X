@@ -148,6 +148,10 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y = min(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
 
+	# [แก้บั๊กวาร์ปหาย] ลิมิตความเร็วแกน Y ไม่ให้บอสกระเด็นขึ้นฟ้าแรงเกินไป
+	if velocity.y < -600.0:
+		velocity.y = -600.0
+
 	match state:
 		BossState.IDLE:
 			_process_idle(delta)
@@ -644,10 +648,14 @@ func _process_air_counter(delta: float) -> void:
 ## Has i-frames while airborne so it actually works as an escape maneuver.
 func _process_backstep(delta: float) -> void:
 	attack_timer += delta
-	if is_on_floor() and attack_timer > 0.1:
+	
+	# [แก้บั๊กเหยียบหัว] บังคับให้ท่านี้รันไปอย่างน้อย 0.3 วินาทีก่อน เพื่อให้มันกระโดดพ้นหัวผู้เล่นจริงๆ
+	# และเช็คด้วยว่ากำลังตกลงมา (velocity.y >= 0) หรือแตะพื้นจริงแล้ว
+	if attack_timer > 0.3 and (is_on_floor() or velocity.y >= 0.0):
 		hurtbox.set_deferred("monitoring", true)
 		hurtbox.set_deferred("monitorable", true)
 		velocity.x = move_toward(velocity.x, 0.0, 800.0 * delta)
+		
 		if is_zero_approx(velocity.x):
 			# Chain into a counter-attack instead of going back to idle like an idiot
 			if current_phase >= 2 and randf() < 0.6:
