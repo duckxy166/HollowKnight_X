@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://xfdnqfyedt0y"
-path="res://.godot/imported/Parry Projectile.png-710c195426f5c4b66c1506071ec34547.ctex"
+uid="uid://bs03ovpjm0rcm"
+path="res://.godot/imported/Pyke (2).png-00993a321c4a5f23d982899f2db56134.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Parry Projectile.png"
-dest_files=["res://.godot/imported/Parry Projectile.png-710c195426f5c4b66c1506071ec34547.ctex"]
+source_file="res://asset/characters/pyke/Pyke (2).png"
+dest_files=["res://.godot/imported/Pyke (2).png-00993a321c4a5f23d982899f2db56134.ctex"]
 
 [params]
 

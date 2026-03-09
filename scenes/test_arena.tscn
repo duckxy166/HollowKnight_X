@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://d2hd10i4hu8fc"]
 
 [ext_resource type="PackedScene" uid="uid://eup0g8sfwn6q" path="res://player/player.tscn" id="1_player"]
-[ext_resource type="PackedScene" uid="uid://qv211r1t08pl" path="res://boss.tscn" id="2_boss"]
+[ext_resource type="PackedScene" uid="uid://qv211r1t08pl" path="res://boss/boss.tscn" id="2_boss"]
 [ext_resource type="PackedScene" path="res://ui/combat_hud.tscn" id="3_hud"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_floor"]

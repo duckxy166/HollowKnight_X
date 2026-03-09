@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls /c/Users/saharat/Documents/hollow-knight-จีนแดง/*.uid)"
+    ]
+  }
+}

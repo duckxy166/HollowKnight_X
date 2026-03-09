@@ -3,15 +3,15 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://caqj7ymsx06h7"
-path="res://.godot/imported/ParryBoss.png-feb322502b91350dafe89daadd72fc80.ctex"
+path="res://.godot/imported/ParryBoss.png-85bd4b4666dff73b07b4256d65c36246.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://ParryBoss.png"
-dest_files=["res://.godot/imported/ParryBoss.png-feb322502b91350dafe89daadd72fc80.ctex"]
+source_file="res://asset/enemies/boss/ParryBoss.png"
+dest_files=["res://.godot/imported/ParryBoss.png-85bd4b4666dff73b07b4256d65c36246.ctex"]
 
 [params]
 

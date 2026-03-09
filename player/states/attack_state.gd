@@ -53,8 +53,8 @@ func enter() -> void:
 
 
 func exit() -> void:
-	character.attack_hitbox.monitoring = false
-	character.attack_hitbox.monitorable = false
+	character.attack_hitbox.set_deferred("monitoring", false)
+	character.attack_hitbox.set_deferred("monitorable", false)
 	character.attack_hitbox.position = SIDE_HITBOX_POS
 	character.is_down_attacking = false
 	is_up_attack = false
@@ -72,8 +72,8 @@ func physics_process_state(delta: float) -> void:
 
 	# Deactivate hitbox after active frames window (first 40%)
 	if hitbox_active and attack_timer < character.ATTACK_DURATION * 0.6:
-		character.attack_hitbox.monitoring = false
-		character.attack_hitbox.monitorable = false
+		character.attack_hitbox.set_deferred("monitoring", false)
+		character.attack_hitbox.set_deferred("monitorable", false)
 		hitbox_active = false
 
 	attack_timer -= delta
@@ -85,6 +85,6 @@ func physics_process_state(delta: float) -> void:
 
 
 func _activate_hitbox() -> void:
-	character.attack_hitbox.monitoring = true
-	character.attack_hitbox.monitorable = true
+	character.attack_hitbox.set_deferred("monitoring", true)
+	character.attack_hitbox.set_deferred("monitorable", true)
 	hitbox_active = true

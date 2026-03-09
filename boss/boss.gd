@@ -67,7 +67,7 @@ var lightning_timer: float = 0.0
 var lightning_spawned: bool = false
 
 var player: CharacterBody2D = null
-var projectile_scene: PackedScene = preload("res://boss_projectile.tscn")
+var projectile_scene: PackedScene = preload("res://boss/boss_projectile.tscn")
 var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 
 # ── Node References ──

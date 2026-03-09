@@ -1,6 +1,6 @@
-[gd_scene format=3 uid="uid://bhtypf2fvwo8i"]
+[gd_scene format=3 uid="uid://qv211r1t08pl"]
 
-[ext_resource type="Script" path="res://boss.gd" id="1_boss"]
+[ext_resource type="Script" uid="uid://c3s72eeinu3rp" path="res://boss/boss.gd" id="1_boss"]
 [ext_resource type="Texture2D" uid="uid://c2h0uiqv6a54f" path="res://asset/enemies/boss/Attack1.png" id="9_r8fku"]
 [ext_resource type="Texture2D" uid="uid://cg1u041ibumjk" path="res://asset/enemies/boss/Attack2.png" id="10_ysc7m"]
 [ext_resource type="Texture2D" uid="uid://bi1lhrdd4p7af" path="res://asset/enemies/boss/Attack3.png" id="11_7ke2s"]
