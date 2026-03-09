@@ -22,6 +22,22 @@ size = Vector2(34, 22)
 [sub_resource type="RectangleShape2D" id="SubResource_hurtbox"]
 size = Vector2(20, 44)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_1s1j2"]
+atlas = ExtResource("11_7ke2s")
+region = Rect2(486, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_km2bi"]
+atlas = ExtResource("11_7ke2s")
+region = Rect2(648, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_u0duv"]
+atlas = ExtResource("11_7ke2s")
+region = Rect2(810, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_lc4na"]
+atlas = ExtResource("11_7ke2s")
+region = Rect2(972, 0, 162, 162)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_xvkcc"]
 atlas = ExtResource("9_r8fku")
 region = Rect2(0, 0, 162, 162)
@@ -210,6 +226,26 @@ region = Rect2(162, 0, 162, 162)
 atlas = ExtResource("11_7ke2s")
 region = Rect2(324, 0, 162, 162)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_8arul"]
+atlas = ExtResource("9_r8fku")
+region = Rect2(324, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_3d2wm"]
+atlas = ExtResource("9_r8fku")
+region = Rect2(486, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_rrd6h"]
+atlas = ExtResource("9_r8fku")
+region = Rect2(648, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_7g8a4"]
+atlas = ExtResource("9_r8fku")
+region = Rect2(810, 0, 162, 162)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_r8fku"]
+atlas = ExtResource("9_r8fku")
+region = Rect2(972, 0, 162, 162)
+
 [sub_resource type="AtlasTexture" id="AtlasTexture_ad74g"]
 atlas = ExtResource("16_akhi5")
 region = Rect2(0, 0, 162, 162)
@@ -256,6 +292,23 @@ region = Rect2(324, 0, 162, 162)
 
 [sub_resource type="SpriteFrames" id="SpriteFrames_uw77l"]
 animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_1s1j2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_km2bi")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_u0duv")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_lc4na")
+}],
+"loop": true,
+"name": &"air_counter",
+"speed": 5.0
+}, {
 "frames": [{
 "duration": 1.0,
 "texture": SubResource("AtlasTexture_xvkcc")
@@ -439,6 +492,26 @@ animations = [{
 }, {
 "frames": [{
 "duration": 1.0,
+"texture": SubResource("AtlasTexture_8arul")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_3d2wm")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_rrd6h")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_7g8a4")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_r8fku")
+}],
+"loop": true,
+"name": &"parry",
+"speed": 5.0
+}, {
+"frames": [{
+"duration": 1.0,
 "texture": SubResource("AtlasTexture_ad74g")
 }, {
 "duration": 1.0,
@@ -511,12 +584,11 @@ shape = SubResource("SubResource_hurtbox")
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=662270678]
 sprite_frames = SubResource("SpriteFrames_uw77l")
-animation = &"lighningCharge"
-frame_progress = 0.6350097
+animation = &"air_counter"
 
 [node name="TelegraphSFX" type="AudioStreamPlayer" parent="." unique_id=937178032]
 stream = ExtResource("18_telegraph")
 volume_db = -6.0
 
-[node name="HurtSFX" type="AudioStreamPlayer" parent="."]
+[node name="HurtSFX" type="AudioStreamPlayer" parent="." unique_id=63787802]
 stream = ExtResource("19_hurt")

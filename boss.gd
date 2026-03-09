@@ -3,7 +3,7 @@ extends CharacterBody2D
 ## Boss AI with 4-phase system. Phases escalate attacks and speed as HP drops.
 
 # ── State Machine ──
-enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, LIGHTNING, HURT, DEATH }
+enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, LIGHTNING, HURT, DEATH, PARRY_STANCE, AIR_COUNTER }
 
 # ── Constants ──
 const MAX_HP: int = 40
@@ -38,13 +38,14 @@ const LIGHTNING_CHARGE_TIME: float = 1.0
 const LIGHTNING_STRIKES_BASE: int = 2  # strikes in phase 3
 const LIGHTNING_STRIKES_P4: int = 4    # strikes in phase 4
 
-# Damage cooldown so the same swing doesn't double-hit
-const DAMAGE_COOLDOWN: float = 0.05
+# Parry stance — boss blocks player's attack then counters
+const PARRY_CHANCE_PER_HIT: float = 0.15   # +15% per hit taken
+const PARRY_CHANCE_MAX: float = 0.6         # cap at 60%
+const PARRY_DECAY_RATE: float = 0.3         # decays per second when not being hit
 
-# Parry escalation — boss gets better at blocking when spammed
-const PARRY_CHANCE_PER_HIT: float = 0.15
-const PARRY_CHANCE_MAX: float = 0.6
-const PARRY_DECAY_RATE: float = 0.1  # how fast parry_chance drops per second
+# Air counter
+const AIR_COUNTER_THRESHOLD: int = 3
+const AIR_COUNTER_JUMP_SPEED: float = -400.0
 
 # ── Runtime State ──
 var hp: int = MAX_HP
@@ -52,6 +53,9 @@ var current_phase: int = 1
 var state: BossState = BossState.IDLE
 var dir: int = -1  # -1 = facing left (toward player by default)
 var idle_timer: float = 0.0
+var parry_chance: float = 0.0
+var parry_did_block: bool = false   # true if boss blocked a hit during this stance
+var player_air_count: int = 0
 var attack_timer: float = 0.0
 var hurt_timer: float = 0.0
 var combo_count: int = 0
@@ -59,11 +63,8 @@ var delay_phase: int = 0  # 0=windup, 1=pause, 2=swing
 var delay_timer: float = 0.0
 var hitbox_active: bool = false
 var is_dead: bool = false
-var is_invincible: bool = false
 var lightning_timer: float = 0.0
 var lightning_spawned: bool = false
-var damage_cooldown_timer: float = 0.0
-var parry_chance: float = 0.0  # increases when hit repeatedly
 
 var player: CharacterBody2D = null
 var projectile_scene: PackedScene = preload("res://boss_projectile.tscn")
@@ -112,13 +113,15 @@ func _physics_process(delta: float) -> void:
 	if is_dead:
 		return
 
-	# Tick down damage cooldown
-	if damage_cooldown_timer > 0:
-		damage_cooldown_timer -= delta
-
 	# Parry chance decays over time so boss won't block forever
 	if parry_chance > 0:
-		parry_chance = max(parry_chance - PARRY_DECAY_RATE * delta, 0.0)
+		parry_chance = maxf(parry_chance - PARRY_DECAY_RATE * delta, 0.0)
+
+	# Track if player is in the air — boss uses this to decide air_counter
+	if player and not player.is_on_floor():
+		player_air_count += 1
+	elif player and player.is_on_floor():
+		player_air_count = max(player_air_count - 1, 0)
 
 	# Gravity
 	if not is_on_floor():
@@ -141,6 +144,10 @@ func _physics_process(delta: float) -> void:
 			_process_lightning(delta)
 		BossState.HURT:
 			_process_hurt(delta)
+		BossState.PARRY_STANCE:
+			_process_parry_stance(delta)
+		BossState.AIR_COUNTER:
+			_process_air_counter(delta)
 		BossState.DEATH:
 			velocity.x = 0.0
 
@@ -247,6 +254,34 @@ func _enter_state(new_state: BossState) -> void:
 			hurtbox.monitorable = false
 			body_collision.set_deferred("disabled", true)
 
+		BossState.PARRY_STANCE:
+			_face_player()
+			velocity.x = 0.0
+			parry_did_block = false
+			attack_timer = 0.0
+			# Play attack2 but pause at frame 1 as "guard" pose
+			anim.speed_scale = 1.0
+			anim.play("attack2")
+			anim.set_frame_and_progress(1, 0.0)
+			anim.pause()
+			# Blue tint = guard mode (visual telegraph for the player)
+			anim.modulate = Color(0.6, 0.7, 1.0, 1.0)
+			# Hitbox active immediately — if player swings into this, it triggers parry
+			attack_hitbox.monitoring = true
+			attack_hitbox.monitorable = true
+			hitbox_active = true
+
+		BossState.AIR_COUNTER:
+			_face_player()
+			velocity.x = 0.0
+			# Boss jumps upward toward player
+			velocity.y = AIR_COUNTER_JUMP_SPEED
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.2
+			anim.play("attack1")  # overhead slash
+			attack_timer = 0.0
+			hitbox_active = false
+			player_air_count = 0  # reset after using this move
+
 
 # ── State Processing ──
 
@@ -277,10 +312,14 @@ func _process_attack(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# Hitbox comes out fast — frame 1.5 instead of 3
+	# Hitbox timing depends on attack type
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
-	var hitbox_start: float = frame_dur * 1.5
-	var hitbox_end: float = frame_dur * 4.0
+	var hitbox_start: float = frame_dur * 4.0 # Default for Attack 1
+	var hitbox_end: float = frame_dur * 5.5
+	
+	if state == BossState.ATTACK2:
+		hitbox_start = frame_dur * 2.0
+		hitbox_end = frame_dur * 4.0
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
@@ -301,10 +340,10 @@ func _process_combo(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# attack3 has 8 frames — hitbox comes out quick
+	# attack3 has 8 frames — hitbox starts on frame 4
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.3)
-	var hitbox_start: float = frame_dur * 1.5
-	var hitbox_end: float = frame_dur * 3.5
+	var hitbox_start: float = frame_dur * 4.0
+	var hitbox_end: float = frame_dur * 5.5
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
@@ -428,6 +467,58 @@ func _on_animation_finished() -> void:
 			pass  # Handled by timer
 
 
+## Parry stance — boss holds guard pose with blue tint.
+## If the player attacks into the active hitbox, parry_occurred fires and
+## the boss counterattacks. If the window expires without a block, return to idle.
+func _process_parry_stance(delta: float) -> void:
+	attack_timer += delta
+	velocity.x = 0.0
+
+	if parry_did_block:
+		# Boss blocked! Brief pause then counterattack
+		if attack_timer >= 0.12:
+			anim.modulate = Color.WHITE
+			attack_hitbox.monitoring = false
+			attack_hitbox.monitorable = false
+			hitbox_active = false
+			# Counterattack — fast attack1
+			_enter_state(BossState.ATTACK1)
+		return
+
+	# Guard window lasts 0.5 seconds
+	if attack_timer >= 0.5:
+		# Nobody attacked — drop guard, go back to idle
+		anim.modulate = Color.WHITE
+		attack_hitbox.monitoring = false
+		attack_hitbox.monitorable = false
+		hitbox_active = false
+		_enter_state(BossState.IDLE)
+
+
+## Air counter — boss jumps up with an overhead slash to catch airborne players.
+func _process_air_counter(delta: float) -> void:
+	attack_timer += delta
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.2)
+
+	# Hitbox active from frame 2 to frame 5
+	if not hitbox_active and attack_timer >= frame_dur * 2.0:
+		attack_hitbox.monitoring = true
+		attack_hitbox.monitorable = true
+		hitbox_active = true
+
+	if hitbox_active and attack_timer >= frame_dur * 5.0:
+		attack_hitbox.monitoring = false
+		attack_hitbox.monitorable = false
+		hitbox_active = false
+
+	# Once boss lands back on floor, go back to idle
+	if attack_timer > frame_dur * 3.0 and is_on_floor():
+		attack_hitbox.monitoring = false
+		attack_hitbox.monitorable = false
+		hitbox_active = false
+		_enter_state(BossState.IDLE)
+
+
 # ── Attack Selection ──
 
 func _pick_and_enter_attack() -> void:
@@ -449,13 +540,18 @@ func _pick_and_enter_attack() -> void:
 		attacks.append(BossState.LIGHTNING)
 
 	var chosen: BossState = attacks[randi() % attacks.size()]
+
+	# If player has been jumping a lot, consider air counter
+	if player and not player.is_on_floor() and player_air_count >= AIR_COUNTER_THRESHOLD:
+		chosen = BossState.AIR_COUNTER
+
 	_enter_state(chosen)
 
 
 # ── Combat ──
 
 func take_damage(amount: int, _from_position: Vector2) -> void:
-	if is_dead or damage_cooldown_timer > 0:
+	if is_dead:
 		return
 
 	# Check if boss auto-parries this hit (escalating chance)
@@ -466,7 +562,6 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 	hp -= amount
 	hp = max(hp, 0)
 	hurt_sfx.play()
-	damage_cooldown_timer = DAMAGE_COOLDOWN
 
 	# Getting hit a lot makes boss more likely to parry next time
 	parry_chance = min(parry_chance + PARRY_CHANCE_PER_HIT, PARRY_CHANCE_MAX)
@@ -480,17 +575,30 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 
 func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> void:
 	# Check if the parried area belongs to us
-	if enemy_area == attack_hitbox:
+	if enemy_area != attack_hitbox:
+		return
+	if is_dead or state == BossState.DEATH:
+		return
+
+	if state == BossState.PARRY_STANCE:
+		# Boss SUCCESSFULLY blocked the player's attack!
+		# Don't stagger — mark the block and let _process_parry_stance counterattack
+		parry_did_block = true
+		attack_timer = 0.0  # reset timer for the counter delay
+		# Flash white to show the clash
+		anim.modulate = Color(3.0, 3.0, 3.0, 1.0)
+		var tween := create_tween()
+		tween.tween_property(anim, "modulate", Color(0.6, 0.7, 1.0, 1.0), 0.08)
+	else:
+		# Normal parry — boss staggers
 		attack_hitbox.monitoring = false
 		attack_hitbox.monitorable = false
 		hitbox_active = false
-		# Brief stagger on parry with flash
-		if not is_dead and state != BossState.DEATH:
-			_brief_flash()
-			hurt_timer = 0.2
-			anim.speed_scale = 1.0
-			anim.play("takehit")
-			state = BossState.HURT
+		_brief_flash()
+		hurt_timer = 0.2
+		anim.speed_scale = 1.0
+		anim.play("takehit")
+		state = BossState.HURT
 
 
 ## Quick white flash when hit — boss keeps doing whatever it was doing.
@@ -500,20 +608,12 @@ func _brief_flash() -> void:
 	tween.tween_property(anim, "modulate", Color.WHITE, 0.06)
 
 
-## Boss auto-parries: briefly flash attack hitbox so the player's swing hits it.
+## Boss auto-parries: enter a proper parry stance instead of just flashing.
 func _auto_parry() -> void:
-	attack_hitbox.monitoring = true
-	attack_hitbox.monitorable = true
-	# Brief flash to telegraph the parry
-	var tween = create_tween()
-	anim.modulate = Color(1.0, 0.5, 0.5, 1.0)
-	tween.tween_property(anim, "modulate", Color.WHITE, 0.15)
-	# Deactivate hitbox after a short window
-	get_tree().create_timer(0.1).timeout.connect(func():
-		if not is_dead:
-			attack_hitbox.monitoring = false
-			attack_hitbox.monitorable = false
-	)
+	if state == BossState.PARRY_STANCE or state == BossState.DEATH:
+		return
+	telegraph_sfx.play()
+	_enter_state(BossState.PARRY_STANCE)
 
 
 func _update_phase() -> void:

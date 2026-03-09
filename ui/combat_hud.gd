@@ -25,8 +25,8 @@ func _ready() -> void:
 	# Boss bar: bright vivid red so it pops against dark backgrounds
 	_style_bar(boss_bar, Color(1.0, 0.2, 0.15), Color(0.2, 0.1, 0.1))
 	_style_bar(player_bar, Color(0.95, 0.82, 0.35), Color(0.15, 0.12, 0.12))
-	# Stamina: bright green
-	_style_bar(stamina_bar, Color(0.2, 0.8, 0.2), Color(0.1, 0.2, 0.1))
+	# Stamina: grey tone
+	_style_bar(stamina_bar, Color(0.6, 0.6, 0.6), Color(0.15, 0.15, 0.15))
 
 	if boss:
 		boss_bar.max_value = boss.MAX_HP
