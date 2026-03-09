@@ -9,7 +9,7 @@ extends CanvasLayer
 @onready var stamina_bar: ProgressBar = $PlayerStaminaBar
 @onready var potion_label: Label = $PotionLabel
 @onready var game_over_panel: ColorRect = $GameOverPanel
-@onready var restart_button: Button = $GameOverPanel/RestartButton
+@onready var victory_panel: ColorRect = $VictoryPanel
 
 var player: CharacterBody2D = null
 var boss: CharacterBody2D = null
@@ -35,10 +35,11 @@ func _ready() -> void:
 		player_bar.max_value = player.health
 		player_bar.value = player.health
 
-	# Death UI setup
+	# UI setup
 	game_over_panel.hide()
+	victory_panel.hide()
 	GameManager.player_died.connect(_on_player_died)
-	restart_button.pressed.connect(_on_restart_pressed)
+	GameManager.boss_died.connect(_on_boss_died)
 
 
 func _process(_delta: float) -> void:
@@ -85,9 +86,9 @@ func _style_bar(bar: ProgressBar, fill_color: Color, bg_color: Color) -> void:
 
 func _on_player_died() -> void:
 	game_over_panel.show()
-	# Optional: pause the game behind the UI
-	# get_tree().paused = true
-
-func _on_restart_pressed() -> void:
-	# get_tree().paused = false
+	# Quick reset after a tiny delay so the player sees the "YOU DIED" screen briefly
+	await get_tree().create_timer(1.0).timeout
 	get_tree().reload_current_scene()
+
+func _on_boss_died() -> void:
+	victory_panel.show()

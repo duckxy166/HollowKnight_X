@@ -8,6 +8,9 @@ signal parry_occurred(player_node: Node2D, enemy_area: Area2D)
 ## Emitted when the player's death animation finishes and the restart UI should appear
 signal player_died
 
+## Emitted when the boss is defeated
+signal boss_died
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS

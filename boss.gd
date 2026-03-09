@@ -55,7 +55,7 @@ var dir: int = -1  # -1 = facing left (toward player by default)
 var idle_timer: float = 0.0
 var parry_chance: float = 0.0
 var parry_did_block: bool = false   # true if boss blocked a hit during this stance
-var player_air_count: int = 0
+var player_air_time: float = 0.0
 var attack_timer: float = 0.0
 var hurt_timer: float = 0.0
 var combo_count: int = 0
@@ -78,6 +78,7 @@ var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 @onready var body_collision: CollisionShape2D = $CollisionShape2D
 @onready var telegraph_sfx: AudioStreamPlayer = $TelegraphSFX
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSFX
+@onready var parry_sfx: AudioStreamPlayer = $ParrySFX
 
 
 func _ready() -> void:
@@ -119,9 +120,9 @@ func _physics_process(delta: float) -> void:
 
 	# Track if player is in the air — boss uses this to decide air_counter
 	if player and not player.is_on_floor():
-		player_air_count += 1
-	elif player and player.is_on_floor():
-		player_air_count = max(player_air_count - 1, 0)
+		player_air_time += delta
+	else:
+		player_air_time = 0.0
 
 	# Gravity
 	if not is_on_floor():
@@ -176,7 +177,7 @@ func _enter_state(new_state: BossState) -> void:
 			_face_player()
 			_telegraph_attack()
 			velocity.x = 0.0
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.5
 			anim.play("attack1")
 			attack_timer = 0.0
 			hitbox_active = false
@@ -186,7 +187,7 @@ func _enter_state(new_state: BossState) -> void:
 			_face_player()
 			_telegraph_attack()
 			velocity.x = 0.0
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.5
 			anim.play("attack2")
 			attack_timer = 0.0
 			hitbox_active = false
@@ -196,7 +197,7 @@ func _enter_state(new_state: BossState) -> void:
 			_telegraph_attack()
 			velocity.x = 0.0
 			combo_count = 0
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.3
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.8
 			anim.play("attack3")
 			attack_timer = 0.0
 			hitbox_active = false
@@ -280,7 +281,7 @@ func _enter_state(new_state: BossState) -> void:
 			anim.play("attack1")  # overhead slash
 			attack_timer = 0.0
 			hitbox_active = false
-			player_air_count = 0  # reset after using this move
+			player_air_time = 0.0  # reset after using this move
 
 
 # ── State Processing ──
@@ -313,13 +314,13 @@ func _process_attack(delta: float) -> void:
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
 	# Hitbox timing depends on attack type
-	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
-	var hitbox_start: float = frame_dur * 4.0 # Default for Attack 1
-	var hitbox_end: float = frame_dur * 5.5
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
+	var hitbox_start: float = frame_dur * 1.0 # Default for Attack 1
+	var hitbox_end: float = frame_dur * 3.5
 	
 	if state == BossState.ATTACK2:
-		hitbox_start = frame_dur * 2.0
-		hitbox_end = frame_dur * 4.0
+		hitbox_start = frame_dur * 0.5
+		hitbox_end = frame_dur * 3.0
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
@@ -340,10 +341,10 @@ func _process_combo(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# attack3 has 8 frames — hitbox starts on frame 4
-	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.3)
-	var hitbox_start: float = frame_dur * 4.0
-	var hitbox_end: float = frame_dur * 5.5
+	# attack3 has 8 frames — hitbox starts extremely early
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.8)
+	var hitbox_start: float = frame_dur * 1.0
+	var hitbox_end: float = frame_dur * 3.5
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
@@ -385,13 +386,13 @@ func _process_delay_attack(delta: float) -> void:
 			attack_timer += delta
 			var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
 
-			if not hitbox_active and attack_timer >= frame_dur * 0.5:
+			if not hitbox_active and attack_timer >= frame_dur * 0.2:
 				attack_hitbox.monitoring = true
 				attack_hitbox.monitorable = true
 				hitbox_active = true
-				velocity.x = dir * 100.0
+				velocity.x = dir * 150.0
 
-			if hitbox_active and attack_timer >= frame_dur * 2.5:
+			if hitbox_active and attack_timer >= frame_dur * 2.0:
 				attack_hitbox.monitoring = false
 				attack_hitbox.monitorable = false
 				hitbox_active = false
@@ -425,6 +426,8 @@ func _process_hurt(delta: float) -> void:
 
 func _on_animation_finished() -> void:
 	if is_dead:
+		if anim.animation == "death":
+			GameManager.boss_died.emit()
 		return
 
 	match state:
@@ -500,8 +503,8 @@ func _process_air_counter(delta: float) -> void:
 	attack_timer += delta
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.2)
 
-	# Hitbox active from frame 2 to frame 5
-	if not hitbox_active and attack_timer >= frame_dur * 2.0:
+	# Hitbox active from frame 1 to frame 5
+	if not hitbox_active and attack_timer >= frame_dur * 1.0:
 		attack_hitbox.monitoring = true
 		attack_hitbox.monitorable = true
 		hitbox_active = true
@@ -589,6 +592,9 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 		anim.modulate = Color(3.0, 3.0, 3.0, 1.0)
 		var tween := create_tween()
 		tween.tween_property(anim, "modulate", Color(0.6, 0.7, 1.0, 1.0), 0.08)
+		
+		# Play metallic parry block sound
+		parry_sfx.play()
 	else:
 		# Normal parry — boss staggers
 		attack_hitbox.monitoring = false

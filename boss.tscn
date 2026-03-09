@@ -12,6 +12,7 @@
 [ext_resource type="Texture2D" uid="uid://ba2xt2cw323j4" path="res://asset/enemy/boss/Take hit.png" id="17_vwlhh"]
 [ext_resource type="AudioStream" uid="uid://72klle34j8dc" path="res://asset/VFX/Combat and Gore/swipe.wav" id="18_telegraph"]
 [ext_resource type="AudioStream" uid="uid://fya354mqwh1w" path="res://asset/effect/hero_damage_less_harsh.wav" id="19_hurt"]
+[ext_resource type="AudioStream" path="res://asset/VFX/Combat and Gore/kick.wav" id="20_parry_sfx"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_body"]
 size = Vector2(14, 44)
@@ -592,3 +593,7 @@ volume_db = -6.0
 
 [node name="HurtSFX" type="AudioStreamPlayer" parent="." unique_id=63787802]
 stream = ExtResource("19_hurt")
+
+[node name="ParrySFX" type="AudioStreamPlayer" parent="." unique_id=748596001]
+stream = ExtResource("20_parry_sfx")
+volume_db = 2.0

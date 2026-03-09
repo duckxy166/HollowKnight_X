@@ -49,7 +49,7 @@ func _process_telegraph(delta: float) -> void:
 
 	# Thin line flashes faster as it gets closer to striking
 	var flash_speed: float = 8.0 + progress * 20.0
-	var alpha: float = 0.2 + 0.6 * abs(sin(telegraph_timer * flash_speed))
+	var alpha: float = 0.2 + (0.6 * abs(sin(telegraph_timer * flash_speed)))
 	telegraph_line.default_color = Color(1.0, 0.9, 0.3, alpha)
 	telegraph_line.width = 1.0 + progress * 2.0
 
