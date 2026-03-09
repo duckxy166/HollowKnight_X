@@ -604,3 +604,6 @@ stream = ExtResource("21_slash_sfx")
 
 [node name="VoicePlayer" type="AudioStreamPlayer" parent="." unique_id=543210987]
 volume_db = 5.0
+
+[node name="HurtVoicePlayer" type="AudioStreamPlayer" parent="." unique_id=123456789]
+volume_db = 3.0

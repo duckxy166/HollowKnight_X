@@ -80,6 +80,7 @@ var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 @onready var parry_sfx: AudioStreamPlayer = $ParrySFX
 @onready var slash_sfx: AudioStreamPlayer = $SlashSFX
 @onready var voice_player: AudioStreamPlayer = $VoicePlayer
+@onready var hurt_voice_player: AudioStreamPlayer = $HurtVoicePlayer
 
 var voice_hurts: Array[AudioStream] = [
 	preload("res://asset/effect/boss/Voicy_Valorant Sova Ah  2  .mp3"),
@@ -192,7 +193,8 @@ func _enter_state(new_state: BossState) -> void:
 			_face_player()
 			_telegraph_attack()
 			velocity.x = 0.0
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.5
+			# Clamp speed so attacks stay reactable even in phase 4
+			anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.5, 2.0)
 			anim.play("attack1")
 			attack_timer = 0.0
 			hitbox_active = false
@@ -202,7 +204,7 @@ func _enter_state(new_state: BossState) -> void:
 			_face_player()
 			_telegraph_attack()
 			velocity.x = 0.0
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.5
+			anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.5, 2.0)
 			anim.play("attack2")
 			attack_timer = 0.0
 			hitbox_active = false
@@ -212,7 +214,7 @@ func _enter_state(new_state: BossState) -> void:
 			_telegraph_attack()
 			velocity.x = 0.0
 			combo_count = 0
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.8
+			anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.8, 2.0)
 			anim.play("attack3")
 			attack_timer = 0.0
 			hitbox_active = false
@@ -248,6 +250,9 @@ func _enter_state(new_state: BossState) -> void:
 			attack_hitbox.monitoring = false
 			attack_hitbox.monitorable = false
 			hitbox_active = false
+			# Voice line plays at START of charge so it works as a telegraph/warning
+			voice_player.stream = voice_lightning
+			voice_player.play()
 
 		BossState.HURT:
 			velocity.x = 0.0
@@ -292,7 +297,7 @@ func _enter_state(new_state: BossState) -> void:
 			velocity.x = 0.0
 			# Boss jumps upward toward player
 			velocity.y = AIR_COUNTER_JUMP_SPEED
-			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1] * 1.2
+			anim.speed_scale = minf(SPEED_MULTIPLIERS[current_phase - 1] * 1.2, 2.0)
 			anim.play("attack1")  # overhead slash
 			attack_timer = 0.0
 			hitbox_active = false
@@ -310,6 +315,9 @@ func _enter_state(new_state: BossState) -> void:
 			anim.play("idle")  # use idle or whatever fits best as a retreat
 			attack_timer = 0.0
 			hitbox_active = false
+			# i-frames while airborne so backstep actually works as an escape
+			hurtbox.monitoring = false
+			hurtbox.monitorable = false
 
 
 # ── State Processing ──
@@ -571,10 +579,13 @@ func _process_air_counter(delta: float) -> void:
 
 
 ## Backstep — boss quickly jumps backward to reposition.
+## Has i-frames while airborne so it actually works as an escape maneuver.
 func _process_backstep(delta: float) -> void:
 	attack_timer += delta
-	# Slow down horizontal speed as he lands
+	# Re-enable hurtbox once boss lands so he can be hit again
 	if is_on_floor() and attack_timer > 0.1:
+		hurtbox.monitoring = true
+		hurtbox.monitorable = true
 		velocity.x = move_toward(velocity.x, 0.0, 800.0 * delta)
 		if velocity.x == 0:
 			_enter_state(BossState.IDLE)
@@ -634,10 +645,10 @@ func take_damage(amount: int, _from_position: Vector2) -> void:
 	hp = max(hp, 0)
 	hurt_sfx.play()
 	
-	# Randomly play hurt voice (e.g. 80% chance instead of 30%)
-	if randf() < 0.8:
-		voice_player.stream = voice_hurts.pick_random()
-		voice_player.play()
+	# Separate audio channel for hurt grunts — won't cut off speech lines
+	if randf() < 0.8 and not hurt_voice_player.playing:
+		hurt_voice_player.stream = voice_hurts.pick_random()
+		hurt_voice_player.play()
 
 	# Getting hit a lot makes boss more likely to parry next time
 	parry_chance = min(parry_chance + PARRY_CHANCE_PER_HIT, PARRY_CHANCE_MAX)
@@ -692,12 +703,17 @@ func _brief_flash() -> void:
 	tween.tween_property(anim, "modulate", Color.WHITE, 0.06)
 
 
-## Boss auto-parries: enter a proper parry stance instead of just flashing.
+## Boss auto-parries: enter parry stance AND force-stagger the player immediately.
+## This avoids a physics desync where Godot's Area2D won't re-fire area_entered
+## if the player's sword is already overlapping the boss hitbox in the same frame.
 func _auto_parry() -> void:
 	if state == BossState.PARRY_STANCE or state == BossState.DEATH:
 		return
 	telegraph_sfx.play()
 	_enter_state(BossState.PARRY_STANCE)
+	# Force-stagger the player so the parry can't be ignored by physics
+	if player and player.has_method("on_parried_by_boss"):
+		player.on_parried_by_boss()
 
 
 func _update_phase() -> void:
@@ -732,9 +748,6 @@ func _spawn_projectile() -> void:
 func _spawn_lightning_strikes() -> void:
 	if player == null:
 		return
-		
-	voice_player.stream = voice_lightning
-	voice_player.play()
 
 	var strike_count: int = LIGHTNING_STRIKES_P4 if current_phase >= 4 else LIGHTNING_STRIKES_BASE
 	# Get arena bounds from walls (roughly x=0 to x=1280)
@@ -794,4 +807,4 @@ func _update_direction(new_dir: int) -> void:
 func _distance_to_player() -> float:
 	if player == null:
 		return 9999.0
-	return abs(player.global_position.x - global_position.x)
+	return global_position.distance_to(player.global_position)
