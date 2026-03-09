@@ -65,6 +65,7 @@ var current_hit_parried: bool = false  # prevents hitbox from re-opening after a
 var is_dead: bool = false
 var lightning_timer: float = 0.0
 var lightning_spawned: bool = false
+var spawn_position: Vector2 = Vector2.ZERO  # จำตำแหน่งเกิดไว้ ถ้าตกนอกแมพจะวาร์ปกลับ
 
 var player: CharacterBody2D = null
 var projectile_scene: PackedScene = preload("res://boss/boss_projectile.tscn")
@@ -101,6 +102,7 @@ func _ready() -> void:
 	# ปิดทั้งหมดตอนเริ่ม — จะเปิดเฉพาะตอนฟันจริงๆ เท่านั้น
 	attack_hitbox.monitoring = false
 	attack_hitbox.monitorable = false
+	spawn_position = global_position  # จำตำแหน่งเกิดไว้กันตกนอกแมพ
 
 	# Find player in the scene
 	await get_tree().process_frame
@@ -113,6 +115,13 @@ func _ready() -> void:
 		else:
 			# Try to find CharacterBody2D named Player
 			player = get_parent().get_node_or_null("Player")
+
+	if player:
+		# [แก้บั๊กทะลุแมพแบบเด็ดขาด] ปิดการดันกันทางฟิสิกส์ระหว่างบอสกับผู้เล่นโดยตรง
+		# แค่กล่อง CharacterBody2D จะไม่แคร์กัน แต่ดาบ/Hitbox ที่เป็น Area2D ยังทำงานสมบูรณ์
+		add_collision_exception_with(player)
+		if player.has_method("add_collision_exception_with"):
+			player.add_collision_exception_with(self)
 
 	# Listen for parry events
 	GameManager.parry_occurred.connect(_on_parry_occurred)
@@ -148,9 +157,13 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y = min(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
 
-	# [แก้บั๊กวาร์ปหาย] ลิมิตความเร็วแกน Y ไม่ให้บอสกระเด็นขึ้นฟ้าแรงเกินไป
+	# [แก้บั๊กวาร์ปหาย] ลิมิตความเร็วทั้ง 2 แกน ทำงานทุกเฟรมไม่ว่าบอสอยู่ State ไหน
+	# ป้องกัน Recoil ทะลุขอบจอตอนที่บอสมี Hyper Armor แล้วไม่เข้า HURT
+	velocity.x = clamp(velocity.x, -400.0, 400.0)
 	if velocity.y < -600.0:
 		velocity.y = -600.0
+	elif velocity.y > 800.0: # ป้องกันโดนอัดลงพื้นจนทะลุแมพ
+		velocity.y = 800.0
 
 	match state:
 		BossState.IDLE:
@@ -179,6 +192,13 @@ func _physics_process(delta: float) -> void:
 			velocity.x = 0.0
 
 	move_and_slide()
+	
+	# Safety net: ถ้าบอสตกออกนอกแมพ (ต่ำกว่าจุดเกิด 300px) ให้วาร์ปกลับทันที
+	if global_position.y > spawn_position.y + 300.0:
+		global_position = spawn_position
+		velocity = Vector2.ZERO
+		if state != BossState.DEATH:
+			_enter_state(BossState.IDLE)
 
 
 # ── State Transitions ──
@@ -325,9 +345,11 @@ func _enter_state(new_state: BossState) -> void:
 
 		BossState.BACKSTEP:
 			_face_player()
-			# Jump backward quickly
-			velocity.x = -dir * CHASE_SPEED * 3.0
-			velocity.y = -250.0
+			# รีเซ็ตความเร็วก่อน! ป้องกัน Recoil จาก apply_recoil ทบกับแรงกระโดดถอย
+			velocity = Vector2.ZERO
+			# กระโดดถอยหลังด้วยแรงที่ควบคุมได้ ไม่ต้องเร็วเท่าจรวด
+			velocity.x = -dir * CHASE_SPEED * 2.0
+			velocity.y = -200.0
 			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
 			anim.play("idle")  # use idle or whatever fits best as a retreat
 			attack_timer = 0.0
@@ -500,10 +522,7 @@ func _process_lightning(delta: float) -> void:
 
 
 func _process_hurt(delta: float) -> void:
-	# [เพิ่มโค้ด 2 บรรทัดนี้!] เบรกแรง Recoil จาก GameManager ไม่ให้บอสกระเด็นเวอร์เกินไป
-	velocity.x = clamp(velocity.x, -150.0, 150.0)
-	if velocity.y < -150.0: velocity.y = -150.0
-	
+	# Recoil ถูกเบรกแล้วใน _physics_process ตรงนี้แค่ชะลอความเร็วลงให้หยุดนิ่ง
 	velocity.x = move_toward(velocity.x, 0.0, 400.0 * delta)
 	hurt_timer -= delta
 	if hurt_timer <= 0:
@@ -809,10 +828,9 @@ func _on_parry_occurred(_player_node: CharacterBody2D, enemy_area: Area2D) -> vo
 				_apply_hit_stop(0.08, 0.1)
 			
 			_brief_flash()
-			hurt_timer = 0.2
-			anim.speed_scale = 1.0
-			anim.play("takehit")
-			state = BossState.HURT
+			
+			# ใช้ _enter_state แทนการยัดค่าตรงๆ เพื่อรีเซ็ตตัวแปรของ State เก่าให้สะอาด
+			_enter_state(BossState.HURT)
 			
 			# 15% chance boss acknowledges a good parry
 			if randf() < 0.15:

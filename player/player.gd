@@ -255,7 +255,11 @@ func _handle_parry(enemy_area: Area2D) -> void:
 	dust.global_position = contact_pos
 	get_parent().add_child(dust)
 
-	var enemy = enemy_area.get_parent()
+	# หากล่องหลัก (CharacterBody2D) ของบอสให้เจอ ไม่ใช่ติดอยู่ที่ AttackPivot
+	var enemy: Node = enemy_area.get_parent()
+	while enemy != null and not (enemy is CharacterBody2D):
+		enemy = enemy.get_parent()
+		
 	var was_boss_parrying_player: bool = false
 	if enemy is CharacterBody2D:
 		GameManager.apply_recoil(enemy, global_position, RECOIL_STRENGTH)
