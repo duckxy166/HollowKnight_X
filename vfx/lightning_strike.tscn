@@ -1,6 +1,7 @@
 [gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://vfx/lightning_strike.gd" id="1_script"]
+[ext_resource type="AudioStream" path="res://asset/VFX/ahmed_abdulaal-laser-312360.mp3" id="2_laser"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_shape"]
 size = Vector2(18, 300)
@@ -32,3 +33,6 @@ default_color = Color(1, 0.9, 0.3, 0.5)
 points = PackedVector2Array(0, 5, 0, -350)
 width = 8.0
 default_color = Color(1, 0.3, 0.1, 0.0)
+
+[node name="LaserSFX" type="AudioStreamPlayer" parent="." unique_id=987654321]
+stream = ExtResource("2_laser")

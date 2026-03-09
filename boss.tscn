@@ -13,6 +13,7 @@
 [ext_resource type="AudioStream" uid="uid://72klle34j8dc" path="res://asset/VFX/Combat and Gore/swipe.wav" id="18_telegraph"]
 [ext_resource type="AudioStream" uid="uid://fya354mqwh1w" path="res://asset/effect/hero_damage_less_harsh.wav" id="19_hurt"]
 [ext_resource type="AudioStream" path="res://asset/VFX/Combat and Gore/kick.wav" id="20_parry_sfx"]
+[ext_resource type="AudioStream" path="res://asset/effect/Stab 4-1.wav" id="21_slash_sfx"]
 
 [sub_resource type="RectangleShape2D" id="SubResource_body"]
 size = Vector2(14, 44)
@@ -597,3 +598,6 @@ stream = ExtResource("19_hurt")
 [node name="ParrySFX" type="AudioStreamPlayer" parent="." unique_id=748596001]
 stream = ExtResource("20_parry_sfx")
 volume_db = 2.0
+
+[node name="SlashSFX" type="AudioStreamPlayer" parent="." unique_id=859707112]
+stream = ExtResource("21_slash_sfx")

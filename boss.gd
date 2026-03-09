@@ -2,8 +2,7 @@ extends CharacterBody2D
 
 ## Boss AI with 4-phase system. Phases escalate attacks and speed as HP drops.
 
-# ── State Machine ──
-enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, LIGHTNING, HURT, DEATH, PARRY_STANCE, AIR_COUNTER }
+enum BossState { IDLE, CHASE, ATTACK1, ATTACK2, COMBO, DELAY_ATTACK, PROJECTILE, LIGHTNING, HURT, DEATH, PARRY_STANCE, AIR_COUNTER, BACKSTEP }
 
 # ── Constants ──
 const MAX_HP: int = 40
@@ -45,7 +44,7 @@ const PARRY_DECAY_RATE: float = 0.3         # decays per second when not being h
 
 # Air counter
 const AIR_COUNTER_THRESHOLD: int = 3
-const AIR_COUNTER_JUMP_SPEED: float = -400.0
+const AIR_COUNTER_JUMP_SPEED: float = -250.0
 
 # ── Runtime State ──
 var hp: int = MAX_HP
@@ -79,6 +78,7 @@ var lightning_scene: PackedScene = preload("res://vfx/lightning_strike.tscn")
 @onready var telegraph_sfx: AudioStreamPlayer = $TelegraphSFX
 @onready var hurt_sfx: AudioStreamPlayer = $HurtSFX
 @onready var parry_sfx: AudioStreamPlayer = $ParrySFX
+@onready var slash_sfx: AudioStreamPlayer = $SlashSFX
 
 
 func _ready() -> void:
@@ -149,6 +149,8 @@ func _physics_process(delta: float) -> void:
 			_process_parry_stance(delta)
 		BossState.AIR_COUNTER:
 			_process_air_counter(delta)
+		BossState.BACKSTEP:
+			_process_backstep(delta)
 		BossState.DEATH:
 			velocity.x = 0.0
 
@@ -283,6 +285,16 @@ func _enter_state(new_state: BossState) -> void:
 			hitbox_active = false
 			player_air_time = 0.0  # reset after using this move
 
+		BossState.BACKSTEP:
+			_face_player()
+			# Jump backward quickly
+			velocity.x = -dir * CHASE_SPEED * 3.0
+			velocity.y = -250.0
+			anim.speed_scale = SPEED_MULTIPLIERS[current_phase - 1]
+			anim.play("idle")  # use idle or whatever fits best as a retreat
+			attack_timer = 0.0
+			hitbox_active = false
+
 
 # ── State Processing ──
 
@@ -315,17 +327,20 @@ func _process_attack(delta: float) -> void:
 
 	# Hitbox timing depends on attack type
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.5)
-	var hitbox_start: float = frame_dur * 1.0 # Default for Attack 1
-	var hitbox_end: float = frame_dur * 3.5
+	# attack1: windup 3, hit 4
+	var hitbox_start: float = frame_dur * 3.0 
+	var hitbox_end: float = frame_dur * 4.5
 	
 	if state == BossState.ATTACK2:
-		hitbox_start = frame_dur * 0.5
+		# attack2: windup 1, hit 2
+		hitbox_start = frame_dur * 1.0
 		hitbox_end = frame_dur * 3.0
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
 		attack_hitbox.monitorable = true
 		hitbox_active = true
+		slash_sfx.play()
 
 	if hitbox_active and attack_timer >= hitbox_end:
 		attack_hitbox.monitoring = false
@@ -341,15 +356,17 @@ func _process_combo(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = move_toward(velocity.x, 0.0, 300.0 * delta)
 
-	# attack3 has 8 frames — hitbox starts extremely early
+	# attack3: windup 3, hit 4
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.8)
-	var hitbox_start: float = frame_dur * 1.0
-	var hitbox_end: float = frame_dur * 3.5
+	var hitbox_start: float = frame_dur * 3.0
+	var hitbox_end: float = frame_dur * 4.5
 
 	if not hitbox_active and attack_timer >= hitbox_start:
 		attack_hitbox.monitoring = true
 		attack_hitbox.monitorable = true
 		hitbox_active = true
+		slash_sfx.pitch_scale = randf_range(0.9, 1.1)
+		slash_sfx.play()
 
 	if hitbox_active and attack_timer >= hitbox_end:
 		attack_hitbox.monitoring = false
@@ -373,7 +390,9 @@ func _process_delay_attack(delta: float) -> void:
 				anim.pause()
 				delay_phase = 1
 				delay_timer = DELAY_PAUSE
+				
 		1:  # Pause phase: hold the wind-up pose
+			_face_player() # Track player even if they roll behind us
 			delay_timer -= delta
 			if delay_timer <= 0:
 				# Resume with fast swing
@@ -391,6 +410,8 @@ func _process_delay_attack(delta: float) -> void:
 				attack_hitbox.monitorable = true
 				hitbox_active = true
 				velocity.x = dir * 150.0
+				slash_sfx.pitch_scale = 0.8
+				slash_sfx.play()
 
 			if hitbox_active and attack_timer >= frame_dur * 2.0:
 				attack_hitbox.monitoring = false
@@ -470,12 +491,19 @@ func _on_animation_finished() -> void:
 			pass  # Handled by timer
 
 
-## Parry stance — boss holds guard pose with blue tint.
+## Parry stance — boss holds guard pose. Hitbox active on frame 1.
 ## If the player attacks into the active hitbox, parry_occurred fires and
 ## the boss counterattacks. If the window expires without a block, return to idle.
 func _process_parry_stance(delta: float) -> void:
 	attack_timer += delta
 	velocity.x = 0.0
+	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1])
+
+	# Hitbox active on frame 1
+	if not hitbox_active and attack_timer >= frame_dur * 1.0:
+		attack_hitbox.monitoring = true
+		attack_hitbox.monitorable = true
+		hitbox_active = true
 
 	if parry_did_block:
 		# Boss blocked! Brief pause then counterattack
@@ -503,11 +531,13 @@ func _process_air_counter(delta: float) -> void:
 	attack_timer += delta
 	var frame_dur: float = 1.0 / (5.0 * SPEED_MULTIPLIERS[current_phase - 1] * 1.2)
 
-	# Hitbox active from frame 1 to frame 5
-	if not hitbox_active and attack_timer >= frame_dur * 1.0:
+	# Air counter: windup 0, hit 1 (starts immediately)
+	if not hitbox_active and attack_timer >= 0.0:
 		attack_hitbox.monitoring = true
 		attack_hitbox.monitorable = true
 		hitbox_active = true
+		slash_sfx.pitch_scale = 1.2
+		slash_sfx.play()
 
 	if hitbox_active and attack_timer >= frame_dur * 5.0:
 		attack_hitbox.monitoring = false
@@ -522,31 +552,45 @@ func _process_air_counter(delta: float) -> void:
 		_enter_state(BossState.IDLE)
 
 
+## Backstep — boss quickly jumps backward to reposition.
+func _process_backstep(delta: float) -> void:
+	attack_timer += delta
+	# Slow down horizontal speed as he lands
+	if is_on_floor() and attack_timer > 0.1:
+		velocity.x = move_toward(velocity.x, 0.0, 800.0 * delta)
+		if velocity.x == 0:
+			_enter_state(BossState.IDLE)
+
+
 # ── Attack Selection ──
 
 func _pick_and_enter_attack() -> void:
 	_face_player()
-	var attacks: Array[BossState] = []
+	var dist = _distance_to_player()
+	var chosen: BossState = BossState.IDLE
 
-	# Phase 1: attack1 and attack2
-	attacks.append(BossState.ATTACK1)
-	attacks.append(BossState.ATTACK2)
-
-	# Phase 2+: add combo
-	if current_phase >= 2:
-		attacks.append(BossState.COMBO)
-
-	# Phase 3+: add delay attack, projectile, and lightning
-	if current_phase >= 3:
-		attacks.append(BossState.DELAY_ATTACK)
-		attacks.append(BossState.PROJECTILE)
-		attacks.append(BossState.LIGHTNING)
-
-	var chosen: BossState = attacks[randi() % attacks.size()]
-
-	# If player has been jumping a lot, consider air counter
-	if player and not player.is_on_floor() and player_air_count >= AIR_COUNTER_THRESHOLD:
+	# Check Air Counter first (Phase 2+)
+	if current_phase >= 2 and player and not player.is_on_floor() and player_air_time >= 0.3:
 		chosen = BossState.AIR_COUNTER
+	else:
+		if dist < ATTACK_RANGE * 1.5:
+			# Close Range - Melee or Backstep
+			var melee_pool = [BossState.ATTACK1, BossState.ATTACK2]
+			if current_phase >= 2: melee_pool.append(BossState.COMBO)
+			if current_phase >= 3: melee_pool.append(BossState.DELAY_ATTACK)
+			
+			# If very close, boss might choose to back away instead
+			if dist < ATTACK_RANGE * 0.8 and randf() < 0.3:
+				chosen = BossState.BACKSTEP
+			else:
+				chosen = melee_pool.pick_random()
+		else:
+			# Long Range - Chase or Ranged
+			var range_pool = [BossState.CHASE]
+			if current_phase >= 3:
+				range_pool.append(BossState.PROJECTILE)
+				range_pool.append(BossState.LIGHTNING)
+			chosen = range_pool.pick_random()
 
 	_enter_state(chosen)
 
@@ -662,8 +706,17 @@ func _spawn_lightning_strikes() -> void:
 	# Floor y position (lightning spawns on the floor)
 	var floor_y: float = global_position.y
 
-	# One strike always targets player position
-	var positions: Array[float] = [player.global_position.x]
+	# Calculate lead distance predicting player's movement
+	var lead_distance: float = 0.0
+	if player.has_method("get_real_velocity"):
+		lead_distance = player.get_real_velocity().x * 0.5
+	elif "velocity" in player:
+		lead_distance = player.velocity.x * 0.5
+	
+	var target_x: float = clamp(player.global_position.x + lead_distance, arena_min_x, arena_max_x)
+
+	# One strike targets predicted player position
+	var positions: Array[float] = [target_x]
 
 	# Remaining strikes at spread positions around the arena
 	for i in range(strike_count - 1):

@@ -18,6 +18,7 @@ var telegraph_timer: float = TELEGRAPH_DURATION
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var telegraph_line: Line2D = $TelegraphLine
 @onready var danger_line: Line2D = $DangerLine
+@onready var laser_sfx: AudioStreamPlayer = $LaserSFX
 
 
 func _ready() -> void:
@@ -77,6 +78,7 @@ func _start_strike() -> void:
 	# Impact effects
 	GameManager.apply_screen_shake(4.0, 0.15)
 	GameManager.apply_screen_flash(0.05)
+	laser_sfx.play()
 
 
 func _process_strike(delta: float) -> void:
