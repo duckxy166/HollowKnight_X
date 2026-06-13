@@ -8,7 +8,21 @@ const TELEGRAPH_DURATION: float = 0.7
 const STRIKE_FPS: float = 22.0
 const TOTAL_FRAMES: int = 13
 
-var textures: Array[Texture2D] = []
+var textures: Array[Texture2D] = [
+	preload("res://asset/fx/lightning/lightning_v2_1.png"),
+	preload("res://asset/fx/lightning/lightning_v2_2.png"),
+	preload("res://asset/fx/lightning/lightning_v2_3.png"),
+	preload("res://asset/fx/lightning/lightning_v2_4.png"),
+	preload("res://asset/fx/lightning/lightning_v2_5.png"),
+	preload("res://asset/fx/lightning/lightning_v2_6.png"),
+	preload("res://asset/fx/lightning/lightning_v2_7.png"),
+	preload("res://asset/fx/lightning/lightning_v2_8.png"),
+	preload("res://asset/fx/lightning/lightning_v2_9.png"),
+	preload("res://asset/fx/lightning/lightning_v2_10.png"),
+	preload("res://asset/fx/lightning/lightning_v2_11.png"),
+	preload("res://asset/fx/lightning/lightning_v2_12.png"),
+	preload("res://asset/fx/lightning/lightning_v2_13.png")
+]
 var current_frame: int = 0
 var frame_timer: float = 0.0
 var is_striking: bool = false
@@ -23,9 +37,6 @@ var telegraph_timer: float = TELEGRAPH_DURATION
 
 func _ready() -> void:
 	add_to_group("enemy_attack")
-	# Load lightning frames
-	for i in range(1, TOTAL_FRAMES + 1):
-		textures.append(load("res://asset/fx/lightning/lightning_v2_%d.png" % i))
 
 	# Start with telegraph only, no hitbox
 	sprite.visible = false
